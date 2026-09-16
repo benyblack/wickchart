@@ -91,9 +91,10 @@ test('WickScript reference lists the built-in functions and caps', () => {
 
 test('feed attributes are documented', () => {
   const sec = docs.slice(docs.indexOf('id="feeds"'), docs.indexOf('id="events"'));
-  for (const a of ['binance', 'demo', 'url', 'poll', 'tf', 'limit', 'live']) {
+  for (const a of ['binance', 'demo', 'url', 'poll', 'tf', 'limit', 'live', 'aggregate']) {
     assert.ok(sec.includes(a), `feed attribute "${a}" missing`);
   }
+  assert.ok(sec.includes('TickBarAggregator'), 'the aggregate helpers export is documented');
 });
 
 test('every sidebar link resolves to a real section', () => {

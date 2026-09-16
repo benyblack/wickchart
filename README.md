@@ -64,6 +64,7 @@ with **zero JavaScript written**:
 | `tf`        | timeframe: `1m 3m 5m 15m 30m 1h 2h 4h 6h 12h 1d 3d 1w`                  |
 | `limit`     | initial bars (default 500)                                               |
 | `live`      | `live="false"` loads history without streaming                           |
+| `aggregate` | information-based bars from a trade stream (see below)                   |
 
 The element reflects its state in the `status` attribute (`loading`, `live`,
 `polling`, `fallback`, `loaded`, `waiting`, `idle`) and emits
@@ -71,6 +72,24 @@ The element reflects its state in the `status` attribute (`loading`, `live`,
 (geo-blocked, offline), it degrades gracefully: WebSocket → REST polling → a
 synthetic stream bridged from the last real price, so the chart never goes
 blank. It also wires `chart.onloadmore` for infinite backfill automatically.
+
+### Information-based bars (advanced bars)
+
+Add `aggregate` to any feed and bars close on *information*, not the clock:
+
+```html
+<wick-feed for="c" binance="BTCUSDT" aggregate="dollar:50000"></wick-feed>
+<wick-chart id="c" indicators="volume"></wick-chart>
+```
+
+`tick:200` closes a bar every 200 prints, `volume:50` every 50 base units,
+`dollar:50000` every $50k traded — the quant-grade alternative to time
+candles, built client-side from the raw trade tape (Binance aggTrade
+WebSocket + paginated REST backfill; offline synthetic prints with `demo=`;
+your own JSON trades endpoint with `url=` + `poll=`). The value you pass *is*
+the bar size — tune it per instrument. The machinery is exported too:
+`import { TickBarAggregator, aggregateTrades } from 'wickchart/feed'` to pipe
+any trade stream through the same aggregator.
 
 ---
 

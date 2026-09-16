@@ -12,7 +12,11 @@ PNG export, ~0.2 ms per frame at default zoom.
 **Done (2026-09):** the five recommended PRs below — loadMore backfill + gap
 dividers, indicator registry + Bollinger + MACD, positions/orders + alerts,
 stats panel + measure tool, getState/setState + URL sharing. Plus a security
-hardening pass (strict color validation for untrusted attribute input).
+hardening pass (strict color validation for untrusted attribute input), the
+full indicator breadth (OHLC bars/hollow/Heikin-Ashi, step/baseline lines,
+VWAP/ATR/Stoch/OBV/Donchian/Keltner/CCI/WR/SuperTrend), the plugins hub,
+Playwright e2e, timezone-aware axes, and tick/volume/dollar bar aggregation
+on `<wick-feed>` (PR #61).
 
 Effort: **S** ≤ a day · **M** a few days · **L** a week+. Order within a track
 is suggested priority.
@@ -27,7 +31,7 @@ is suggested priority.
 | Session / gap handling | Optional axis "gap" dividers when bar intervals jump (weekends, market close). | S | x-axis is already index-space, so gaps compress naturally; only axis *labels* need honesty — boundary-based ticks already give most of this. Session shading shipped as the opt-in `wickchart-sessions` plugin instead of a core attr. |
 | ~~Second symbol overlay~~ ✅ shipped (plugin) | `wickchart-compare` — percent-rebase compare lines + ratio/diff derived series with a live legend, drawn against an invisible secondary scale. | S | New overlay series type; legend shows both. |
 | ~~Range navigator~~ ✅ shipped (plugin) | `wickchart-navigator` — full-dataset silhouette strip with a draggable viewport window; enabled the generic `insetBottom` dock hook in the core layer API. | S | The one plugin that needed a (small) core change. |
-| Tick → bar aggregation | `aggregate="volume\|dollar\|tick"` — build advanced bars from a trade stream client-side. | M | Quant-grade feature no mainstream web chart ships built-in. Feed layer first, component second. |
+| ~~Tick → bar aggregation~~ ✅ shipped | `aggregate="volume\|dollar\|tick"` on `<wick-feed>` — bars close on information, not the clock. Binance aggTrade WS + paginated aggTrades seed/backfill, offline synthetic prints for `demo=`, JSON trades endpoints for `url=`; pure `TickBarAggregator` exported from `wickchart/feed`. | M | Quant-grade feature no mainstream web chart ships built-in. |
 | Multi-pane series sync | Link crosshairs/ranges across several `<wick-chart>`s. | S | `wick:range`/`wick:crosshair` events already exist — a small `<wick-grid>` wrapper component finishes it. |
 
 ## Track 2 — Series & indicators (breadth without bloat)
@@ -111,8 +115,10 @@ Canvas 2D floor is ~1 ms at our scale — revisit only with profiler evidence).
 4. ~~**Stats panel + measure tool**~~ ✅ shipped
 5. ~~**`getState()/setState()` + URL sharing**~~ ✅ shipped
 
-**Next up (suggested):** OHLC-bars/hollow/Heikin-Ashi series types, VWAP via
-the registry as a reference custom indicator, a `loadMore` + worker compute
-path for 1M-bar histories, and npm packaging with TypeScript types.
+**Next up (suggested):** `<wick-grid>` multi-chart sync (Track 1), paper
+trading + equity curve on top of `wickchart-replay` (Track 3), the branded
+snapshot/report export (Track 4), and a worker compute path for 1M-bar
+histories (Track 5) — now more urgent, since aggregated bars make huge
+datasets routine.
 
 Each PR lands with the perf gate green (<1 ms default view, <8 ms max zoom-out).

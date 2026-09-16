@@ -37,6 +37,11 @@
       border-radius: 5px; padding: 1px 6px; font-size: 12px;
     }
     .stage { flex: 1; min-height: 0; padding: 14px; }
+    .stage.fixed { flex: none; height: 42vh; }
+    .stage h2 {
+      margin: 0 0 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--muted);
+    }
     wick-chart {
       display: block; width: 100%; height: 100%;
       border-radius: 12px; overflow: hidden;
@@ -73,6 +78,9 @@
       Everything below is HTML: <code>&lt;wick-feed&gt;</code> streams Binance data (falling back
       to a synthetic feed when Binance is unreachable), wires up history backfill, and drives
       <code>&lt;wick-chart&gt;</code> — indicators, volume profile and crosshair included.
+      The second chart is still pure HTML: <code>aggregate="dollar:20000"</code> builds
+      information-based bars from the raw trade tape — a bar closes every $20k traded, not
+      when the clock says so.
       <code>status="<span id="status-text">waiting…</span>"</code>
     </p>
   </header>
@@ -82,6 +90,14 @@
 
   <div class="stage">
     <wick-chart id="chart" type="candles" indicators="sma:20 bb:20 volume" profile></wick-chart>
+  </div>
+
+  <!-- information-based bars, still zero JS: offline synthetic tape + aggregate -->
+  <wick-feed for="agg" demo="BTC" aggregate="dollar:20000" limit="180"></wick-feed>
+
+  <div class="stage fixed">
+    <h2>BTC · dollar:20000 bars — information-based aggregation</h2>
+    <wick-chart id="agg" type="candles" indicators="volume"></wick-chart>
   </div>
 
   <div class="badge"><span id="badge-text">loading</span></div>
