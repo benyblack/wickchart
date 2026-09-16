@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WickChart — a million bars, off the main thread</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%236366f1'/%3E%3Crect x='6' y='9' width='3.4' height='7' rx='1' fill='white'/%3E%3Crect x='14.5' y='7' width='3.4' height='5' rx='1' fill='white' opacity='.6'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --bg: #0b0d12;
+      --panel: #11141c;
+      --border: rgba(148, 163, 184, 0.14);
+      --text: #cbd5e1;
+      --muted: #7c8598;
+      --accent: #6366f1;
+      --up: #16c784;
+      --down: #ea3943;
+      --font: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex; flex-direction: column;
+      background: var(--bg); color: var(--text);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+    header { padding: 20px 24px 14px; border-bottom: 1px solid var(--border); }
+    h1 { margin: 0 0 6px; font-size: 19px; letter-spacing: -0.01em; }
+    h1 code { color: #22d3ee; font-size: 16px; }
+    p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+    p code { background: var(--panel); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; font-size: 12px; }
+    .bar {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      padding: 12px 24px; border-bottom: 1px solid var(--border);
+    }
+    button {
+      font: 600 12.5px var(--font); color: var(--text);
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 14px; cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+    button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    #metrics { font: 500 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); flex: 1; min-width: 240px; }
+    #metrics b { color: var(--text); font-weight: 600; }
+    #metrics .good { color: var(--up); }
+    #metrics .bad { color: var(--down); }
+    .stage { flex: 1; min-height: 320px; padding: 12px; }
+    wick-chart {
+      display: block; width: 100%; height: 100%;
+      border-radius: 12px; overflow: hidden;
+      border: 1px solid var(--border); background: var(--panel);
+      --wick-bg: var(--panel);
+      --wick-up: var(--up);
+      --wick-down: var(--down);
+      --wick-accent: #22d3ee;
+      --wick-text: var(--muted);
+      --wick-text-strong: var(--text);
+    }
+    @media (max-width: 640px) {
+      header { padding: 14px 16px; }
+      .bar { padding: 10px 16px; }
+      .stage { min-height: 260px; }
+    }
+  </style>
+  <!-- the worker pool wiring is the ONE extra import the worker path needs -->
+  <script type="module" src="../src/worker.js"></script>
+</head>
+<body>
+  <header>
+    <h1>A million bars, <code>off the main thread</code></h1>
+    <p>
+      <code>&lt;wick-chart worker&gt;</code> computes its built-in indicators in a Web Worker: the dataset
+      crosses once per load as transferable Float64Arrays (~25&nbsp;ms/M bars — cloning the objects would
+      cost ~1&nbsp;s), and every SMA/Bollinger/RSI first-paint happens off-thread. Watch the longest
+      main-thread freeze in the metrics line: sync mode blocks for the whole compute, worker mode keeps
+      frames flowing while the lines land a few frames later.
+    </p>
+  </header>
+
+  <div class="bar">
+    <button type="button" id="load-worker" class="on">1M bars · worker</button>
+    <button type="button" id="load-sync">1M bars · sync</button>
+    <span id="metrics">press a button — synthetic bars are generated locally, no network</span>
+  </div>
+
+  <div class="stage">
+    <wick-chart id="chart" worker type="candles" indicators="sma:20 ema:50 bb:20"></wick-chart>
+  </div>
+
+  <script type="module">
+    const chart = document.getElementById('chart');
+    const metrics = document.getElementById('metrics');
+    const fmt = (ms) => (ms >= 1000 ? (ms / 1000).toFixed(2) + ' s' : Math.round(ms) + ' ms');
+
+    // deterministic 1M-bar walk (the generator itself is main-thread work —
+    // its time is reported separately so the load numbers stay honest)
+    function genBars(n) {
+      let seed = 42;
+      const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+      const t0 = Date.now() - n * 60_000;
+      const out = new Array(n);
+      let p = 100;
+      for (let i = 0; i < n; i++) {
+        p *= 1 + (rnd() - 0.5) * 0.002;
+        out[i] = {
+          time: t0 + i * 60_000,
+          open: p, high: p * 1.0008, low: p * 0.9992, close: p * (1 + (rnd() - 0.5) * 0.001),
+          volume: Math.round(rnd() * 500),
+        };
+      }
+      return out;
+    }
+
+    // longest gap between animation frames while a load runs — the honest
+    // "how long was the page frozen" number
+    let lastFrame = 0;
+    let worstGap = 0;
+    let monitoring = false;
+    function frame(t) {
+      if (lastFrame) worstGap = Math.max(worstGap, t - lastFrame);
+      lastFrame = t;
+      if (monitoring || performance.now() - lastFrame < 3000) requestAnimationFrame(frame);
+      else lastFrame = 0;
+    }
+    requestAnimationFrame(frame);
+
+    const cls = (ms) => (ms > 200 ? 'bad' : 'good');
+    let arrivals = 0;
+    let arrivalMs = 0;
+    chart.addEventListener('wick:worker', (e) => {
+      arrivals++;
+      arrivalMs = performance.now() - chart._loadStart;
+      paintMetrics();
+    });
+
+    function paintMetrics() {
+      const workerMode = chart.hasAttribute('worker');
+      metrics.innerHTML =
+        '<b>' + (chart.data.length / 1e6).toFixed(2) + 'M</b> bars · ' +
+        'generate <b>' + fmt(chart._genMs || 0) + '</b> · ' +
+        'setData <b>' + fmt(chart._setMs || 0) + '</b> · ' +
+        (workerMode
+          ? arrivals
+            ? 'indicators ×' + arrivals + ' landed off-thread in <b class="good">' + fmt(arrivalMs) + '</b>'
+            : 'computing indicators off-thread…'
+          : 'indicators computed on-thread <b class="bad">' + fmt(chart._syncMs || 0) + '</b>') +
+        ' · longest main-thread freeze <b class="' + cls(worstGap) + '">' + fmt(worstGap) + '</b>';
+    }
+
+    async function load(n, worker) {
+      document.getElementById('load-worker').classList.toggle('on', worker);
+      document.getElementById('load-sync').classList.toggle('on', !worker);
+      if (worker) chart.setAttribute('worker', '');
+      else chart.removeAttribute('worker');
+      arrivals = 0;
+      worstGap = 0;
+      monitoring = true;
+
+      let t = performance.now();
+      const bars = genBars(n);
+      chart._genMs = performance.now() - t;
+
+      chart._loadStart = performance.now();
+      t = performance.now();
+      chart.setData(bars);
+      chart._setMs = performance.now() - t;
+      if (!worker) {
+        // sync mode: the compute happens inside the first render — measure
+        // one settled frame past it
+        t = performance.now();
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        chart._syncMs = performance.now() - t;
+      }
+      monitoring = false;
+      paintMetrics();
+    }
+
+    document.getElementById('load-worker').addEventListener('click', () => load(1_000_000, true));
+    document.getElementById('load-sync').addEventListener('click', () => load(1_000_000, false));
+    load(1_000_000, true);
+  </script>
+</body>
+</html>

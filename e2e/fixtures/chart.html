@@ -54,8 +54,15 @@
       chart.addEventListener('wick:' + name, (e) => window.events[name].push(e.detail));
     }
 
-    // Seed unless a spec asked for an empty chart (?empty).
-    if (!params.has('empty')) {
+    // Seed unless a spec asked for an empty chart (?empty). ?worker exercises
+    // the worker compute path end to end: a real module Worker serving the
+    // built-in indicators over a 60k-bar history (above the 50k threshold).
+    if (params.has('worker')) {
+      await import('/src/worker.js');
+      chart.setAttribute('indicators', 'sma:20 bb:20');
+      chart.setAttribute('worker', '');
+      chart.setData(window.makeBars(60_000));
+    } else if (!params.has('empty')) {
       chart.setData(window.makeBars());
     }
     await window.settle();

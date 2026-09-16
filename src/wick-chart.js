@@ -44,14 +44,31 @@ import {
  *  <wick-chart> and the deprecated <hab-chart> alias element. */
 const REGISTRY = new Map(BUILTIN_INDICATORS);
 
+/** Bars from which the worker compute path engages — below it, sync wins
+ *  (posting the epoch snapshot costs more than the compute it saves). */
+const WORKER_MIN_BARS = 50000;
+/** Returned while an off-thread compute is in flight: no lines yet, and —
+ *  like a failed compute — every renderer draws nothing. A shared object:
+ *  the real series replaces it in the cache when the result lands. */
+const PENDING_SERIES = { lines: [], histogram: null };
+/** Per-chart worker session ids (see _workerCompute / src/worker-core.js). */
+let CHART_SID = 0;
+
   /* SSR safety: importing this module under Node (Next.js/Nuxt server render)
  * must not throw — the element simply registers only in browsers. */
 const HTMLElementBase = typeof HTMLElement !== 'undefined' ? HTMLElement : class {};
 
 class WickChart extends HTMLElementBase {
     static get observedAttributes() {
-      return ['theme', 'type', 'log', 'auto', 'indicators', 'precision', 'label', 'stats', 'profile', 'annotations', 'volshading', 'overlays', 'co-view', 'co-view-name', 'brush', 'sonify', 'alert-evaluate', 'timezone', 'vwap-anchor'];
+      return ['theme', 'type', 'log', 'auto', 'indicators', 'precision', 'label', 'stats', 'profile', 'annotations', 'volshading', 'overlays', 'co-view', 'co-view-name', 'brush', 'sonify', 'alert-evaluate', 'timezone', 'vwap-anchor', 'worker'];
     }
+
+    /**
+     * Shared ChartWorkerPool for the worker compute path (set by importing
+     * 'wickchart/worker'; null — everything sync — until then).
+     * @type {object|null}
+     */
+    static _workerPool = null;
 
     constructor() {
       super();
@@ -267,6 +284,16 @@ class WickChart extends HTMLElementBase {
       this._brushDrag = null; // { i0, i1 } — while the pointer is down
       this._ind = { overlays: [], panes: [], volume: true };
 
+      // worker compute path (see _indicatorSeries): built-in indicators over
+      // big histories compute off the main thread. Results are cached per
+      // data *epoch* (bulk loads: setData/clearData/backfill) — streamed
+      // ticks bump _version, not _epoch, so they stop recomputing the full
+      // series per bar; the forming bar's value catches up on the next load.
+      this._workerOn = false;
+      this._epoch = 0;
+      this._workerCache = { epoch: -1, map: {}, pending: {}, sent: -1 };
+      this._sid = ++CHART_SID;
+
       this._pointers = new Map();
       this._pan = null;
       this._pinch = null;
@@ -454,6 +481,10 @@ class WickChart extends HTMLElementBase {
         case 'indicators':
           this._ind = parseIndicators(val, WickChart._registry());
           break;
+        case 'worker':
+          this._workerOn = val != null && val !== 'false';
+          this._invalidate();
+          break;
         case 'stats':
           this._stats = val != null && val !== 'false';
           this._statsKey = '';
@@ -614,6 +645,7 @@ class WickChart extends HTMLElementBase {
       norm.length = dst;
       this._data = norm;
       this._version++;
+      this._epoch++;
       this._computeDt();
       // history is not a live signal: re-baseline so close-mode alerts only
       // fire on candles that close from here on
@@ -672,6 +704,7 @@ class WickChart extends HTMLElementBase {
     clearData() {
       this._data = [];
       this._version++;
+      this._epoch++;
       this._syncClosedIdx();
       this._hover = null;
       this._needsFit = true;
@@ -716,6 +749,7 @@ class WickChart extends HTMLElementBase {
           }
           this._data = merged;
           this._version++;
+          this._epoch++;
           this._computeDt();
           // keep the exact same bars on screen: every index shifts by `added`
           this._view.rightIndex += added;
@@ -1516,6 +1550,24 @@ class WickChart extends HTMLElementBase {
       }
       const k = 'ind:' + entry.key;
       if (!this._cache.map[k]) {
+        // Worker compute path: built-in indicators over big histories run
+        // off the main thread. A structured clone of a million bar objects
+        // costs ~1 s — the snapshot crosses as six transferable Float64Arrays
+        // (~25 ms) instead, and is sent once per data epoch. Custom and
+        // scripted indicators are closures and cannot cross the boundary:
+        // they stay on the sync path, as does everything below
+        // WORKER_MIN_BARS.
+        const pool = WickChart._workerPool;
+        if (
+          pool && pool.available && this._workerOn &&
+          this._data.length >= WORKER_MIN_BARS &&
+          BUILTIN_INDICATORS.get(entry.name) === entry.def
+        ) {
+          const wc = this._workerCache;
+          if (wc.epoch === this._epoch && wc.map[k]) return wc.map[k];
+          this._workerCompute(pool, entry, k);
+          return PENDING_SERIES; // the line lands when the result arrives
+        }
         let res;
         try {
           // the session anchor rides along for indicators that observe one
@@ -1527,6 +1579,69 @@ class WickChart extends HTMLElementBase {
         this._cache.map[k] = normalizeIndicatorResult(res);
       }
       return this._cache.map[k];
+    }
+
+    /** Bar count from which the worker path engages (below it, sync wins). */
+    _workerCols() {
+      const d = this._data;
+      const n = d.length;
+      const cols = {
+        time: new Float64Array(n), open: new Float64Array(n), high: new Float64Array(n),
+        low: new Float64Array(n), close: new Float64Array(n), volume: new Float64Array(n),
+      };
+      for (let i = 0; i < n; i++) {
+        const b = d[i];
+        cols.time[i] = b.time;
+        cols.open[i] = b.open;
+        cols.high[i] = b.high;
+        cols.low[i] = b.low;
+        cols.close[i] = b.close;
+        cols.volume[i] = b.volume || 0;
+      }
+      return cols;
+    }
+
+    /** Kick an off-thread compute for one indicator (idempotent per epoch). */
+    _workerCompute(pool, entry, k) {
+      const wc = this._workerCache;
+      wc.epoch = this._epoch;
+      if (wc.sent !== this._epoch) {
+        wc.sent = this._epoch;
+        wc.pending = {};
+        pool
+          .run({ type: 'epoch', sid: this._sid, epoch: this._epoch, cols: this._workerCols() })
+          .catch(() => {
+            if (wc.sent === this._epoch) wc.sent = -1; // resend on the next kick
+          });
+      }
+      if (wc.pending[k] === this._epoch) return; // already in flight
+      wc.pending[k] = this._epoch;
+      const epoch = this._epoch; // captured at kick time — a bulk load that
+      // lands while the compute is in flight must not adopt its result
+      pool
+        .run({
+          type: 'indicator', sid: this._sid, epoch,
+          name: entry.name, params: { ...entry.params, anchor: this._vwapAnchor },
+        })
+        .then((res) => this._workerArrived(k, epoch, res))
+        .catch((err) => {
+          delete wc.pending[k];
+          if (err && err.stale && wc.sent === this._epoch) {
+            wc.sent = -1; // the worker no longer holds this epoch's data — resend
+          } else if (wc.epoch === epoch) {
+            wc.map[k] = { lines: [], histogram: null }; // negative cache: draw nothing this epoch
+          }
+        });
+    }
+
+    _workerArrived(k, epoch, res) {
+      const wc = this._workerCache;
+      delete wc.pending[k];
+      if (wc.epoch !== epoch) return; // a newer bulk load won — drop the stale line
+      const norm = normalizeIndicatorResult(res);
+      wc.map[k] = norm;
+      this._fire('worker', { key: k, epoch });
+      this._invalidate();
     }
 
     /** Resolve a line color: #hex / rgb() / CSS name / palette key ('rsi', 'up', …) / cycle.

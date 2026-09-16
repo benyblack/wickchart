@@ -90,8 +90,7 @@ is suggested priority.
 - **Columnar typed-array store** internally (accept objects, convert once). *M*
 - **Min/max downsampling** per pixel column for extreme zoom-outs. *M*
 - Offscreen hover layer (crosshair-only repaint). *M*
-- Web Worker compute path for 1M+ bars; Rust/WASM only if profiling ever
-  demands (see perf analysis — canvas, not JS, is the floor). *M–L*
+- ~~Web Worker compute path for 1M+ bars~~ ✅ shipped (PR #64) — `import 'wickchart/worker'` + `<wick-chart worker>`: built-in indicators compute in a module Worker, the dataset crossing once per bulk load as transferable Float64Arrays (~25 ms/M bars — object clones measured at ~1 s and disqualified); results cached per data epoch so streamed ticks stop recomputing; builtin-only (closures can't cross), 50k+ bars, silent sync fallback. Main entry +1.66 KB (budget 72→74). Rust/WASM stays a non-goal (canvas, not JS, is the floor).
 - Packaging: ~~JSDoc types → `.d.ts`, npm publish + CDN links~~ ✅, ~~`useWickChart`
   React hook + Vue/Svelte examples~~ ✅ shipped as `wickchart/react` (+ live
   `demo/react.html`); semver/changelog policy pending. *S–M*
@@ -116,8 +115,8 @@ Canvas 2D floor is ~1 ms at our scale — revisit only with profiler evidence).
 5. ~~**`getState()/setState()` + URL sharing**~~ ✅ shipped
 
 **Next up (suggested):** the branded snapshot/report export (Track 4) and
-a worker compute path for 1M-bar histories (Track 5) — now more urgent,
-since aggregated bars make huge datasets routine. Tracks 1 and 3's replay
-follow-up are complete.
+the incremental O(1) indicator updates (Track 5) — the natural follow-up to
+the worker path, turning streamed ticks into constant-time work. Tracks 1
+and 3's replay follow-up, and Track 5's worker compute path, are complete.
 
 Each PR lands with the perf gate green (<1 ms default view, <8 ms max zoom-out).

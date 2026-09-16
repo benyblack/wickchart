@@ -219,6 +219,7 @@
         <li><a href="#ai">AI-ready data window</a></li>
         <li><a href="#agent">AI agent interface</a></li>
         <li><a href="#feeds">Feeds (&lt;wick-feed&gt;)</a></li>
+        <li><a href="#worker">Worker compute path<span class="new-pill">NEW</span></a></li>
         <li><a href="#events">Events</a></li>
         <li><a href="#state">State &amp; shareable URLs</a></li>
         <li><a href="#theming">Theming</a></li>
@@ -775,6 +776,19 @@ chart.<span class="attr">applyAI</span>(ops); <span class="cmt">// validated dis
         <p>To pipe your own trade stream, import the machinery directly — <code>import { TickBarAggregator, aggregateTrades } from 'wickchart/feed'</code> — feed prints to <code>add()</code>, and stream the returned bars into <code>chart.update()</code> as they close.</p>
       </section>
 
+      <section id="worker">
+        <h2>Worker compute path <a class="anchor" href="#worker">#</a></h2>
+        <p>Built for million-bar histories. One extra import plus one attribute, and the built-in indicators compute in a Web Worker: the main thread ships the dataset once per bulk load as six transferable <code>Float64Array</code>s (~25&nbsp;ms per million bars — a structured clone of bar objects would cost ~1&nbsp;s), then posts indicator tasks that reference it. First paint of every SMA/Bollinger/SuperTrend/… line happens off-thread; <code>wick:worker</code> fires as each result lands.</p>
+        <div class="codewrap"><pre class="code"><span class="tag">import</span> <span class="str">'wickchart/worker'</span>;   <span class="cmt">// once — wires a shared worker pool into the chart class</span>
+
+<span class="tag">&lt;wick-chart</span> <span class="attr">worker</span> <span class="attr">indicators</span>=<span class="str">"sma:20 bb:20 rsi:14"</span><span class="tag">&gt;&lt;/wick-chart&gt;</span>
+<span class="cmt">// chart.setData(millionBars) — indicators land a few frames later, off the main thread</span></pre></div>
+        <p>Rules of the road: the path engages at <code>worker</code> + a dataset of 50k+ bars + built-in indicators only (custom <code>registerIndicator</code> and WickScript defs are closures — they cannot cross the worker boundary and stay synchronous, as does everything below the threshold). Results are cached per <em>data epoch</em> — a bulk load — so streamed ticks stop recomputing the full series per bar; the forming bar's indicator value catches up on the next load. If no worker can spawn (old browsers, blocked contexts) every chart silently stays on the synchronous path: the attribute is an optimization, never a dependency. A <code>wick:worker</code> <code>{ key, epoch }</code> event fires on the chart when a result lands.</p>
+        <div class="note" style="border-left:3px solid var(--accent, #4c8dff);padding:8px 12px;margin:10px 0;font-size:13px">
+          <b>1M-bar demo:</b> <a href="./demo/worker.html">demo/worker.html</a> loads a million synthetic bars in worker and sync mode side by side, with live main-thread freeze numbers.
+        </div>
+      </section>
+
       <section id="events">
         <h2>Events <a class="anchor" href="#events">#</a></h2>
         <p>Custom events carry their payload in <code>event.detail</code>. (0.x <code>hab:*</code> names still fire as deprecated aliases.)</p>
@@ -786,6 +800,7 @@ chart.<span class="attr">applyAI</span>(ops); <span class="cmt">// validated dis
           <tr><td><code>wick:alert</code></td><td><code>{ id, price, bar }</code></td><td>a price alert crosses (edge-triggered)</td></tr>
           <tr><td><code>wick:annotations</code></td><td>annotation list</td><td>smart annotations recompute</td></tr>
           <tr><td><code>wick:measure</code></td><td>measure result</td><td>shift-drag measurement completes</td></tr>
+          <tr><td><code>wick:worker</code></td><td><code>{ key, epoch }</code></td><td>a worker-computed indicator lands (worker path)</td></tr>
         </table>
         <div class="demo-card">
           <div class="demo-head"><span class="t">Live event log</span><span class="spacer"></span><span style="font-size:12px;color:var(--muted)">pan / zoom / click this chart</span></div>

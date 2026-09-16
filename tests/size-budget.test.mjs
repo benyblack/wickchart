@@ -17,6 +17,12 @@ import { gzipSync } from 'node:zlib';
 // DST-exact Intl offset math, and shaving comments to squeeze a feature in is
 // how a budget stops meaning anything.
 //
+// 72→74 KB: the worker compute path (PR #64). The indicator offload has to
+// live at the _indicatorSeries chokepoint in the main entry (+1.66 KB: the
+// eligibility branch, the epoch/pending bookkeeping and the columnar
+// snapshot); the worker itself is opt-in 'wickchart/worker' bytes outside
+// this budget. Landed at 72.46 KB.
+//
 // This is a ceiling raise, not a licence to sprawl. The reclaim is already
 // measured and deliberately deferred to 2.0, where the plugin split moves
 // sonification (1.11), narrator (1.26), story (1.60), co-view (1.79),
@@ -24,7 +30,7 @@ import { gzipSync } from 'node:zlib';
 // targeting an entry back under 62 KB. Extracting them now would break
 // chart.narrate() / playStory() / playRange() / getPeers() and the sonify and
 // co-view attributes, which is a major-version conversation, not a budget one.
-const BUDGET_GZ = 72 * 1024; // 72 KB gzipped for the whole main entry
+const BUDGET_GZ = 74 * 1024; // 74 KB gzipped for the whole main entry
 const FILES = ['src/core.js', 'src/wick-chart.js'];
 
 // the drawing toolkit is opt-in bytes; it earns its own, smaller budget
