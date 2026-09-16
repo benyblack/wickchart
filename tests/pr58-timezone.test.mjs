@@ -125,9 +125,11 @@ test('vwap-anchor reaches the vwap indicator through the element', async () => {
     _version: 0,
     _cache: { v: -1, map: {} },
     _vwapAnchor: 'utc',
+    _onlineSeries: { epoch: -1, map: {} },
     _invalidate() {},
   };
   chart._indicatorSeries = P._indicatorSeries.bind(chart);
+  chart._seedOnline = P._seedOnline.bind(chart);
   chart.attributeChangedCallback = P.attributeChangedCallback.bind(chart);
   const entry = { key: 'vwap', name: 'vwap', def: BUILTIN_INDICATORS.get('vwap'), params: {} };
 

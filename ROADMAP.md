@@ -85,8 +85,7 @@ is suggested priority.
 - **Tests**: unit tests for pure functions (indicators, ticks, scales), Playwright
   visual-regression diffs, and a **perf-budget CI gate** from the benchmark
   script we already wrote (fail if default-view render > 1 ms). *M*
-- **Incremental indicators**: O(1) online updates on stream ticks instead of
-  full recompute per version. *S–M*
+- ~~**Incremental indicators**~~ ✅ shipped (PR #65) — streamed ticks (append / forming-bar replace) patch every online-capable series by recomputing a bounded tail with the *same* batch definition (O(warm-up) ≈ 0.1 ms per indicator, not O(full history)), writing only the last `period` values so history keeps its exact full-compute values; seeds come from the sync or the worker compute, so the forming bar stays fresh on 1M-bar worker charts too. `obv`/`vwap` (cumulative) and `supertrend` (stateful) are excluded by construction.
 - **Columnar typed-array store** internally (accept objects, convert once). *M*
 - **Min/max downsampling** per pixel column for extreme zoom-outs. *M*
 - Offscreen hover layer (crosshair-only repaint). *M*
@@ -114,9 +113,8 @@ Canvas 2D floor is ~1 ms at our scale — revisit only with profiler evidence).
 4. ~~**Stats panel + measure tool**~~ ✅ shipped
 5. ~~**`getState()/setState()` + URL sharing**~~ ✅ shipped
 
-**Next up (suggested):** the branded snapshot/report export (Track 4) and
-the incremental O(1) indicator updates (Track 5) — the natural follow-up to
-the worker path, turning streamed ticks into constant-time work. Tracks 1
-and 3's replay follow-up, and Track 5's worker compute path, are complete.
+**Next up (suggested):** the branded snapshot/report export (Track 4) — the
+last open feature item. Tracks 1 and 3's replay follow-up, and Track 5's
+worker compute path + incremental indicators, are complete.
 
 Each PR lands with the perf gate green (<1 ms default view, <8 ms max zoom-out).

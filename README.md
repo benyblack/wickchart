@@ -113,6 +113,16 @@ bar. No worker available? Everything silently stays synchronous — the
 attribute is an optimization, never a dependency. Live demo with freeze
 numbers: **[demo/worker.html](./demo/worker.html)**.
 
+**Incremental tick updates** (automatic, worker or not): a streamed tick —
+appending a bar or replacing the forming one — patches every online-capable
+series by recomputing a bounded tail with the *same* batch definition
+(O(warm-up) ≈ 0.1 ms, not O(full history)) and only writing the last
+`period` values, so history is never degraded by tail warm-up error. This
+works on worker-computed bases too: the forming bar's indicator value stays
+fresh instead of waiting for the next bulk load. Cumulative indicators
+(`obv`, `vwap`) and the stateful `supertrend` are excluded and keep the
+full-recompute behavior.
+
 ---
 
 ## Why another chart library?

@@ -15,6 +15,7 @@ function makeChart(bars = []) {
   const chart = {
     _data: bars,
     _version: 0,
+    _onlineSeries: { epoch: -1, map: {} },
     _alerts: [],
     _seq: 0,
     _cache: { v: -1, map: {} },
@@ -36,6 +37,7 @@ function makeChart(bars = []) {
   };
   for (const m of [
     'setData', 'update', 'clearData', '_checkAlerts', '_predicateCache',
+    '_onlineTick',
     '_fireAlert', '_lastClosedIndex', '_syncClosedIdx', '_evalMode',
   ]) {
     chart[m] = P[m].bind(chart);
