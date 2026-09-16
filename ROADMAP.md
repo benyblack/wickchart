@@ -54,7 +54,7 @@ is suggested priority.
 | Price alerts | `addAlert({ price, direction })` → line + `hab:alert` event on cross; optional browser Notification. | S–M | Checked inside `update()`. |
 | Measure tool | Shift-drag A→B: Δprice, ±%, Δtime, bar count overlay. | S–M | |
 | **Stats panel** | Visible-range analytics: return %, annualized vol, max drawdown, up/down bars, avg volume. | S | Pure functions over visible slice; huge "useful" per line of code. |
-| ~~Replay mode~~ ✅ shipped (plugin) | `wickchart-replay` — `replay.start/step/seek/play/pause/stop` + speed & loop; hides the future via the public data API (setData slice + update), badge layer shows the position. Paper trading + equity curve = 0.2 follow-up. | S–M | Renderer is data-driven; slice + reuse auto-follow. |
+| ~~Replay mode~~ ✅ shipped (plugin) | `wickchart-replay` — `replay.start/step/seek/play/pause/stop` + speed & loop; hides the future via the public data API (setData slice + update), badge layer shows the position. ~~Paper trading + equity curve = 0.2 follow-up~~ ✅ shipped as the `wickchart-paper` plugin (next-bar-open market fills, gap-aware limits, netting/flips with averaged entries, fees, docked equity curve with max drawdown, position mirrored onto the core positions API). | S–M | Renderer is data-driven; slice + reuse auto-follow. |
 | Candle countdown | Time remaining in the current bar (legend pill). | S | 1 s timer, no re-render cost (HTML overlay). |
 | Shareable chart state | `getState()/setState()`; demo maps to URL hash (`#BTC-1h-sma20-rsi`). | S | Stickiness + marketing. |
 
@@ -115,9 +115,9 @@ Canvas 2D floor is ~1 ms at our scale — revisit only with profiler evidence).
 4. ~~**Stats panel + measure tool**~~ ✅ shipped
 5. ~~**`getState()/setState()` + URL sharing**~~ ✅ shipped
 
-**Next up (suggested):** paper trading + equity curve on top of
-`wickchart-replay` (Track 3), the branded snapshot/report export (Track 4),
-and a worker compute path for 1M-bar histories (Track 5) — now more urgent,
-since aggregated bars make huge datasets routine. Track 1 is complete.
+**Next up (suggested):** the branded snapshot/report export (Track 4) and
+a worker compute path for 1M-bar histories (Track 5) — now more urgent,
+since aggregated bars make huge datasets routine. Tracks 1 and 3's replay
+follow-up are complete.
 
 Each PR lands with the perf gate green (<1 ms default view, <8 ms max zoom-out).

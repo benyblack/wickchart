@@ -1,0 +1,36 @@
+{
+  "name": "wickchart-paper",
+  "version": "0.1.0",
+  "description": "Paper trading for wickchart — orders against the replayed tape with honest fills (next-bar opens, gap-aware limits), a docked equity curve with peak/drawdown, and the position mirrored onto the chart. Opt-in plugin, zero dependencies, zero core changes.",
+  "type": "module",
+  "main": "paper.mjs",
+  "module": "paper.mjs",
+  "exports": {
+    ".": "./paper.mjs",
+    "./core": "./core.mjs"
+  },
+  "files": [
+    "paper.mjs",
+    "core.mjs",
+    "README.md"
+  ],
+  "keywords": [
+    "chart",
+    "charting",
+    "paper-trading",
+    "backtesting",
+    "replay",
+    "equity-curve",
+    "trading",
+    "wickchart"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "wickchart": ">=1.4.0"
+  },
+  "peerDependenciesMeta": {
+    "wickchart": {
+      "optional": true
+    }
+  }
+}

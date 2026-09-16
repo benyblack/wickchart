@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WickChart — Plugins</title>
-  <meta name="description" content="The wickchart plugin family: drawings, sessions, replay, compare, navigator, alerts+, layouts, signals, tape and grid — each a zero-dependency opt-in package, documented with a live playground." />
+  <meta name="description" content="The wickchart plugin family: drawings, sessions, replay, compare, navigator, alerts+, layouts, signals, tape, grid and paper — each a zero-dependency opt-in package, documented with a live playground." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -192,12 +192,13 @@
         <li><a href="#signals">signals — patterns<span class="pkg">signals</span></a></li>
         <li><a href="#tape">tape — time &amp; sales<span class="pkg">tape</span></a></li>
         <li><a href="#grid">grid — multi-chart sync<span class="pkg">grid</span></a></li>
+        <li><a href="#paper">paper — paper trading<span class="pkg">paper</span></a></li>
       </ul>
     </aside>
 
     <main>
       <section id="start">
-        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">10 packages</span></h2>
+        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">11 packages</span></h2>
         <p>Everything here is an <b>opt-in package</b>, not core bytes: each plugin is a separate npm package, zero dependencies, built only on wickchart's public <a href="./docs.html#plugins">layer API</a> and kept small by its own CI gzip budget. The core chart stays lean — you pay bytes only for what you attach, and everything detaches cleanly.</p>
         <p>Every plugin follows the same shape: <code>attach</code> → configure → <code>detach</code>. Install any of them next to the chart:</p>
         <div class="codewrap"><pre class="code"><span class="tag">npm</span> install wickchart wickchart-sessions   <span class="cmt">// …or wickchart-draw, wickchart-tape, …</span>
@@ -477,6 +478,32 @@ grid.<span class="attr">detach</span>();   <span class="cmt">// unsync, ghost la
         </div>
         <div class="note">Peer: <b>wickchart ≥ 1.4</b>. The pure fan-out model (echo suppression, clamp-cycle breaking, the ghost crosshair layer) is a separate import: <code>wickchart-grid/core</code>.</div>
       </section>
+
+      <section id="paper">
+        <h2>wickchart-paper <a class="anchor" href="#paper">#</a> <span class="size">6.2 KB gz</span></h2>
+        <p>Paper trading on top of <a href="#replay">wickchart-replay</a>: place orders while the tape plays forward and watch them fill at honest prices — a market order placed while paused fills at the <b>next bar's open</b> (you can never trade a close you already saw), limits fill at the limit unless the open gaps through them. The session's equity curve docks under the chart (fills as dots, starting-cash baseline, max drawdown), and the open position mirrors onto the core positions API as an entry line with live P&amp;L. Seeking back resets the session.</p>
+        <div class="codewrap"><pre class="code"><span class="tag">import</span> { attachReplay } <span class="tag">from</span> <span class="str">'wickchart-replay'</span>;
+<span class="tag">import</span> { attachPaper } <span class="tag">from</span> <span class="str">'wickchart-paper'</span>;
+
+<span class="tag">const</span> replay = <span class="attr">attachReplay</span>(chart);
+<span class="tag">const</span> paper = <span class="attr">attachPaper</span>(chart, { <span class="attr">cash</span>: <span class="num">10000</span>, <span class="attr">fee</span>: <span class="num">0.0004</span> });
+replay.<span class="attr">start</span>();           <span class="cmt">// ~70% into the data, future hidden</span>
+paper.<span class="attr">buy</span>(<span class="num">1</span>);             <span class="cmt">// queued — fills at the NEXT bar's open</span>
+paper.<span class="attr">flatten</span>();          <span class="cmt">// market-close the whole position</span>
+paper.<span class="attr">stats</span>;             <span class="cmt">// equity, realized, trades, winRate, maxDD</span></pre></div>
+        <p>Signed quantities net and flip (sell 5 against a long of 2 closes it and opens a short of 3); adds average the entry; fees come off cash per fill. Events on the chart: <code>wick:paper</code> (<code>order / fill / close / cancel / reset</code>). The engine is pure data in / data out — <code>wickchart-paper/core</code> — usable for backtests with no DOM at all.</p>
+        <div class="demo-card">
+          <div class="demo-head">
+            <span class="t">Playground</span>
+            <span id="paper-btns"></span><span class="spacer"></span>
+            <span class="seg" id="paper-ctl"></span>
+          </div>
+          <wick-feed for="ex-paper" demo="BTC" tf="1h" limit="400"></wick-feed>
+          <wick-chart id="ex-paper" label="BTC · 1h · paper"></wick-chart>
+          <div class="foot" id="paper-foot">start the tape, then long / short / flatten — fills land on the equity strip below the axis</div>
+        </div>
+        <div class="note">Peer: <b>wickchart ≥ 1.4</b>, pairs with <b>wickchart-replay</b>. Shares the bottom dock with the navigator and tape (attach one at a time for a clean strip).</div>
+      </section>
     </main>
   </div>
 
@@ -491,6 +518,7 @@ grid.<span class="attr">detach</span>();   <span class="cmt">// unsync, ghost la
     import { attachSignals } from './plugins/signals/signals.mjs';
     import { attachTape } from './plugins/tape/tape.mjs';
     import './plugins/grid/grid.mjs';
+    import { attachPaper } from './plugins/paper/paper.mjs';
 
     const $ = (id) => document.getElementById(id);
 
@@ -847,6 +875,60 @@ grid.<span class="attr">detach</span>();   <span class="cmt">// unsync, ghost la
           : 'sync off — the charts are independent';
       });
       gridEl.setAttribute('sync', 'range time');
+    }
+
+    /* ---------- paper ---------- */
+    {
+      const c = $('ex-paper');
+      const foot = $('paper-foot');
+      let replay = null;
+      let paper = null;
+      let playing = false;
+
+      const start = () => {
+        if (paper) return;
+        replay = attachReplay(c); // imported at the top of this module
+        paper = attachPaper(c, { cash: 10000, fee: 0.0004 });
+        replay.start();
+        foot.textContent = "tape live — place an order; it fills at the next bar's open";
+        c.addEventListener('wick:paper', (e) => {
+          const d = e.detail;
+          const s = paper.stats;
+          if (d.action === 'fill') {
+            foot.textContent =
+              (d.fill.side > 0 ? 'BUY ' : 'SELL ') + d.fill.qty + ' @ ' + d.fill.price.toFixed(2) +
+              ' · equity ' + Math.round(d.equity) + ' · realized ' + d.realized.toFixed(1);
+          } else if (d.action === 'reset') {
+            foot.textContent = 'session reset — account back to 10,000';
+          } else if (d.action === 'close') {
+            foot.textContent = 'closed ' + d.trade.qty + ' @ ' + d.trade.exit.toFixed(2) +
+              ' · P&L ' + (d.trade.pnl >= 0 ? '+' : '') + d.trade.pnl.toFixed(1) +
+              ' · ' + s.wins + '/' + s.trades + ' win rate';
+          }
+        });
+      };
+
+      const stop = () => {
+        if (!paper) return;
+        if (playing) { replay.pause(); playing = false; }
+        replay.stop();
+        replay.detach();
+        paper.detach();
+        replay = null;
+        paper = null;
+        foot.textContent = 'detached — start the tape to trade a fresh session';
+      };
+
+      mkBtn($('paper-btns'), 'Long 1', 'market buy 1 — fills at the next open', () => { start(); paper.buy(1); });
+      mkBtn($('paper-btns'), 'Short 1', 'market sell 1 — fills at the next open', () => { start(); paper.sell(1); });
+      mkBtn($('paper-btns'), 'Flatten', 'market-close the whole position', () => paper && paper.flatten());
+      mkBtn($('paper-btns'), 'Reset', 'restore the 10,000 account', () => paper && paper.reset());
+      seg($('paper-ctl'), [['play', '▶ 4/s'], ['pause', '⏸'], ['stop', 'detach']], 'pause', (v) => {
+        if (v === 'stop') return stop();
+        start();
+        if (v === 'play') { replay.play(4); playing = true; }
+        else { replay.pause(); playing = false; }
+      });
     }
   </script>
 </body>
