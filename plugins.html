@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WickChart — Plugins</title>
-  <meta name="description" content="The wickchart plugin family: drawings, sessions, replay, compare, navigator, alerts+, layouts, signals and tape — each a zero-dependency opt-in package, documented with a live playground." />
+  <meta name="description" content="The wickchart plugin family: drawings, sessions, replay, compare, navigator, alerts+, layouts, signals, tape and grid — each a zero-dependency opt-in package, documented with a live playground." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -191,12 +191,13 @@
         <li><a href="#layouts">layouts — snapshots<span class="pkg">layouts</span></a></li>
         <li><a href="#signals">signals — patterns<span class="pkg">signals</span></a></li>
         <li><a href="#tape">tape — time &amp; sales<span class="pkg">tape</span></a></li>
+        <li><a href="#grid">grid — multi-chart sync<span class="pkg">grid</span></a></li>
       </ul>
     </aside>
 
     <main>
       <section id="start">
-        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">9 packages</span></h2>
+        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">10 packages</span></h2>
         <p>Everything here is an <b>opt-in package</b>, not core bytes: each plugin is a separate npm package, zero dependencies, built only on wickchart's public <a href="./docs.html#plugins">layer API</a> and kept small by its own CI gzip budget. The core chart stays lean — you pay bytes only for what you attach, and everything detaches cleanly.</p>
         <p>Every plugin follows the same shape: <code>attach</code> → configure → <code>detach</code>. Install any of them next to the chart:</p>
         <div class="codewrap"><pre class="code"><span class="tag">npm</span> install wickchart wickchart-sessions   <span class="cmt">// …or wickchart-draw, wickchart-tape, …</span>
@@ -447,6 +448,35 @@ chart.<span class="attr">addEventListener</span>(<span class="str">'wick:tape'</
         </div>
         <div class="note">Peer: <b>wickchart ≥ 1.6</b>. Shares the bottom dock with the navigator. The pure model (normalization, tick rule, <code>tradesToBars</code>, formatting) is a separate import: <code>wickchart-tape/core</code>.</div>
       </section>
+
+      <section id="grid">
+        <h2>wickchart-grid <a class="anchor" href="#grid">#</a> <span class="size">4.4 KB gz</span></h2>
+        <p>Multi-chart layout + sync: one element lays N charts out in a CSS grid and keeps their <b>visible ranges and crosshairs in step</b> — pan or zoom any chart and the others follow; hover one and a dashed ghost crosshair mirrors onto the rest. Everything rides the core's public <code>wick:range</code> / <code>wick:crosshair</code> events, <code>setVisibleRange()</code> and the layer API; the fan-out swallows its own echoes and breaks clamp feedback loops, so sparse charts converge instead of ping-ponging.</p>
+        <div class="codewrap"><pre class="code"><span class="tag">&lt;wick-grid</span> <span class="attr">cols</span>=<span class="str">"2"</span> <span class="attr">sync</span>=<span class="str">"range crosshair"</span> <span class="attr">style</span>=<span class="str">"height: 640px"</span><span class="tag">&gt;</span>
+  <span class="tag">&lt;wick-chart</span> <span class="attr">label</span>=<span class="str">"BTC · 1h"</span> <span class="attr">indicators</span>=<span class="str">"sma:20"</span><span class="tag">&gt;&lt;/wick-chart&gt;</span>
+  <span class="tag">&lt;wick-chart</span> <span class="attr">label</span>=<span class="str">"BTC · 15m"</span> <span class="attr">indicators</span>=<span class="str">"rsi:14"</span><span class="tag">&gt;&lt;/wick-chart&gt;</span>
+<span class="tag">&lt;/wick-grid&gt;</span>
+
+<span class="cmt">// or programmatically, on charts you already lay out:</span>
+<span class="tag">import</span> { attachGrid } <span class="tag">from</span> <span class="str">'wickchart-grid'</span>;
+<span class="tag">const</span> grid = <span class="attr">attachGrid</span>([a, b, c], { <span class="attr">sync</span>: <span class="str">'range time'</span> });
+grid.<span class="attr">detach</span>();   <span class="cmt">// unsync, ghost layers removed</span></pre></div>
+        <p>Attributes: <code>cols</code> (default 2, clamped 1..8), <code>gap</code> (px, default 10), <code>sync</code> — a list of <code>range</code> (shared visible window), <code>crosshair</code> (time + price ghost lines), <code>time</code> (vertical line only — for grids whose price scales are not comparable), <code>both</code>; default <code>range crosshair</code>. The host needs a height: grid rows size from it.</p>
+        <div class="demo-card">
+          <div class="demo-head">
+            <span class="t">Playground</span><span class="spacer"></span>
+            <span class="seg" id="grid-sync"></span>
+          </div>
+          <wick-feed for="ex-g1" demo="BTC" tf="1h" limit="400"></wick-feed>
+          <wick-feed for="ex-g2" demo="ETH" tf="15m" limit="400"></wick-feed>
+          <wick-grid id="ex-grid" cols="2" gap="8" style="height: 380px">
+            <wick-chart id="ex-g1" label="BTC · 1h"></wick-chart>
+            <wick-chart id="ex-g2" label="ETH · 15m" type="line"></wick-chart>
+          </wick-grid>
+          <div class="foot" id="grid-foot">pan or hover one chart — the other follows (time-only sync by default: BTC and ETH prices aren't comparable)</div>
+        </div>
+        <div class="note">Peer: <b>wickchart ≥ 1.4</b>. The pure fan-out model (echo suppression, clamp-cycle breaking, the ghost crosshair layer) is a separate import: <code>wickchart-grid/core</code>.</div>
+      </section>
     </main>
   </div>
 
@@ -460,6 +490,7 @@ chart.<span class="attr">addEventListener</span>(<span class="str">'wick:tape'</
     import { attachLayouts } from './plugins/layouts/layouts.mjs';
     import { attachSignals } from './plugins/signals/signals.mjs';
     import { attachTape } from './plugins/tape/tape.mjs';
+    import './plugins/grid/grid.mjs';
 
     const $ = (id) => document.getElementById(id);
 
@@ -798,6 +829,24 @@ chart.<span class="attr">addEventListener</span>(<span class="str">'wick:tape'</
       c.addEventListener('wick:tape', (e) => {
         if (e.detail.action === 'push') foot.textContent = `${e.detail.total} prints kept — latest side ${tape.trades[tape.trades.length - 1]?.side ?? '?'}`;
       });
+    }
+
+    /* ---------- grid ---------- */
+    {
+      const gridEl = $('ex-grid');
+      const foot = $('grid-foot');
+      seg($('grid-sync'), [
+        ['range time', 'time + range'],
+        ['range crosshair', '+ price'],
+        ['crosshair', 'hover only'],
+        ['', 'off'],
+      ], 'range time', (v) => {
+        gridEl.setAttribute('sync', v || 'off');
+        foot.textContent = v
+          ? 'sync: ' + v + ' — pan or hover one chart, the other follows'
+          : 'sync off — the charts are independent';
+      });
+      gridEl.setAttribute('sync', 'range time');
     }
   </script>
 </body>
