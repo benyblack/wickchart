@@ -1,0 +1,36 @@
+{
+  "name": "wickchart-grid",
+  "version": "0.1.0",
+  "description": "Multi-chart grid + sync for wickchart — one element lays out N charts and keeps their visible ranges and crosshairs in step. Opt-in plugin, zero dependencies, zero core changes.",
+  "type": "module",
+  "main": "grid.mjs",
+  "module": "grid.mjs",
+  "exports": {
+    ".": "./grid.mjs",
+    "./core": "./core.mjs"
+  },
+  "files": [
+    "grid.mjs",
+    "core.mjs",
+    "README.md"
+  ],
+  "keywords": [
+    "chart",
+    "charting",
+    "grid",
+    "multi-chart",
+    "sync",
+    "trading",
+    "web-component",
+    "wickchart"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "wickchart": ">=1.4.0"
+  },
+  "peerDependenciesMeta": {
+    "wickchart": {
+      "optional": true
+    }
+  }
+}

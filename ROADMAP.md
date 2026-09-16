@@ -32,7 +32,7 @@ is suggested priority.
 | ~~Second symbol overlay~~ ✅ shipped (plugin) | `wickchart-compare` — percent-rebase compare lines + ratio/diff derived series with a live legend, drawn against an invisible secondary scale. | S | New overlay series type; legend shows both. |
 | ~~Range navigator~~ ✅ shipped (plugin) | `wickchart-navigator` — full-dataset silhouette strip with a draggable viewport window; enabled the generic `insetBottom` dock hook in the core layer API. | S | The one plugin that needed a (small) core change. |
 | ~~Tick → bar aggregation~~ ✅ shipped | `aggregate="volume\|dollar\|tick"` on `<wick-feed>` — bars close on information, not the clock. Binance aggTrade WS + paginated aggTrades seed/backfill, offline synthetic prints for `demo=`, JSON trades endpoints for `url=`; pure `TickBarAggregator` exported from `wickchart/feed`. | M | Quant-grade feature no mainstream web chart ships built-in. |
-| Multi-pane series sync | Link crosshairs/ranges across several `<wick-chart>`s. | S | `wick:range`/`wick:crosshair` events already exist — a small `<wick-grid>` wrapper component finishes it. |
+| ~~Multi-pane series sync~~ ✅ shipped (plugin) | `wickchart-grid` — `<wick-grid cols gap sync>` lays out N charts and keeps ranges + crosshairs in step (`wick:range`/`wick:crosshair` fan-out with echo suppression + clamp-cycle breaking; ghost crosshair via the layer API; `attachGrid()` for programmatic groups). | S | Track 1 complete. |
 
 ## Track 2 — Series & indicators (breadth without bloat)
 
@@ -115,10 +115,9 @@ Canvas 2D floor is ~1 ms at our scale — revisit only with profiler evidence).
 4. ~~**Stats panel + measure tool**~~ ✅ shipped
 5. ~~**`getState()/setState()` + URL sharing**~~ ✅ shipped
 
-**Next up (suggested):** `<wick-grid>` multi-chart sync (Track 1), paper
-trading + equity curve on top of `wickchart-replay` (Track 3), the branded
-snapshot/report export (Track 4), and a worker compute path for 1M-bar
-histories (Track 5) — now more urgent, since aggregated bars make huge
-datasets routine.
+**Next up (suggested):** paper trading + equity curve on top of
+`wickchart-replay` (Track 3), the branded snapshot/report export (Track 4),
+and a worker compute path for 1M-bar histories (Track 5) — now more urgent,
+since aggregated bars make huge datasets routine. Track 1 is complete.
 
 Each PR lands with the perf gate green (<1 ms default view, <8 ms max zoom-out).
