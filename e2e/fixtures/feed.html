@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>wick-feed e2e fixture</title>
+  <style>
+    html, body { margin: 0; background: #0b0d12; }
+    #box { width: 900px; height: 460px; }
+    wick-chart { width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <!-- offline aggregate path: deterministic synthetic prints, no network -->
+  <wick-feed id="feed" for="chart" demo="BTC" aggregate="dollar:20000" limit="150"></wick-feed>
+  <div id="box"><wick-chart id="chart" type="candles"></wick-chart></div>
+
+  <script type="module" src="/src/wick-feed.js"></script>
+  <script type="module">
+    window.feedEvents = [];
+    document.getElementById('feed').addEventListener('wick-feed:status', (e) => {
+      window.feedEvents.push(e.detail.status);
+    });
+    window.chart = document.getElementById('chart');
+
+    // ready once the feed reports live with a populated chart (15s cap so a
+    // broken run still reports instead of hanging the suite)
+    const wait = setInterval(() => {
+      if (window.chart.data && window.chart.data.length >= 50 && window.feedEvents.includes('live')) {
+        clearInterval(wait);
+        window.ready = true;
+      }
+    }, 50);
+    setTimeout(() => { clearInterval(wait); window.ready = true; }, 15000);
+  </script>
+</body>
+</html>

@@ -762,10 +762,17 @@ chart.<span class="attr">applyAI</span>(ops); <span class="cmt">// validated dis
           <tr><td><code>demo="KEY"</code></td><td>Deterministic offline synthetic feed (<code>BTC</code>/<code>ETH</code>/<code>SOL</code> base prices; any other key seeds a fresh series)</td></tr>
           <tr><td><code>url="ENDPOINT"</code></td><td>Generic REST JSON array of bars; optional <code>poll="SECONDS"</code></td></tr>
           <tr><td><code>tf</code> / <code>limit</code></td><td>Timeframe (<code>1m…1w</code>) / initial bar count (default 500)</td></tr>
+          <tr><td><code>aggregate="KIND[:N]"</code></td><td>Information-based bars from a trade stream — <code>tick:200</code> (N prints), <code>volume:50</code> (N base units) or <code>dollar:50000</code> ($N traded) per bar. See below.</td></tr>
           <tr><td><code>for</code></td><td>Chart id to pair with (auto-pairs with the first chart otherwise)</td></tr>
           <tr><td><code>live="false"</code></td><td>Disable streaming after the initial load</td></tr>
         </table>
         <p>Status is reflected in the <code>status</code> attribute and via <code>wick-feed:status</code> events (<code>loading / live / polling / fallback / loaded</code>). Feeds also wire <code>onloadmore</code> backfill automatically for Binance sources.</p>
+        <h3>Information-based bars (advanced bars)</h3>
+        <p>Add <code>aggregate</code> to any feed and bars close on <em>information</em>, not the clock — the quant-grade alternative to time candles, in one attribute:</p>
+        <div class="codewrap"><pre class="code"><span class="tag">&lt;wick-feed</span> <span class="attr">for</span>=<span class="str">"c"</span> <span class="attr">binance</span>=<span class="str">"BTCUSDT"</span> <span class="attr">aggregate</span>=<span class="str">"dollar:50000"</span><span class="tag">&gt;&lt;/wick-feed&gt;</span>
+<span class="tag">&lt;wick-chart</span> <span class="attr">id</span>=<span class="str">"c"</span> <span class="attr">indicators</span>=<span class="str">"volume"</span><span class="tag">&gt;&lt;/wick-chart&gt;</span></pre></div>
+        <p>With <code>binance=</code> the feed switches to the raw trade tape (aggTrade WebSocket, paginated aggTrades REST for the seed and <code>onloadmore</code> backfill, REST polling as the degraded path); with <code>demo=</code> it runs on deterministic synthetic prints offline; with <code>url=</code> it polls a JSON trades array (<code>{ time, price, size }</code>; <code>qty</code>/<code>amount</code>/<code>t</code> aliases accepted). The completing print belongs entirely to its bar — a whale trade is never split. Thresholds are per-instrument: there is no universal "one bar" size, and the value you pass <em>is</em> the bar size (default <code>tick:100</code>, <code>volume:10</code>, <code>dollar:25000</code>).</p>
+        <p>To pipe your own trade stream, import the machinery directly — <code>import { TickBarAggregator, aggregateTrades } from 'wickchart/feed'</code> — feed prints to <code>add()</code>, and stream the returned bars into <code>chart.update()</code> as they close.</p>
       </section>
 
       <section id="events">
