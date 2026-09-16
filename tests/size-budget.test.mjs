@@ -71,6 +71,11 @@ const TAPE_FILES = ['plugins/tape/core.mjs', 'plugins/tape/tape.mjs'];
 const GRID_BUDGET_GZ = 5 * 1024;
 const GRID_FILES = ['plugins/grid/core.mjs', 'plugins/grid/grid.mjs'];
 
+// paper: fills/netting/fees engine + replay wiring + the equity strip
+// (landed at 6.2 KB gz — engine is pure, the strip is a docked layer)
+const PAPER_BUDGET_GZ = 7 * 1024;
+const PAPER_FILES = ['plugins/paper/core.mjs', 'plugins/paper/paper.mjs'];
+
 const gz = (f) => gzipSync(readFileSync(f)).length;
 
 test('main entry stays under the gzip budget', () => {
@@ -225,5 +230,19 @@ test('wickchart-grid plugin stays under its (smaller) gzip budget', () => {
   assert.ok(
     total <= GRID_BUDGET_GZ,
     `wickchart-grid is ${(total / 1024).toFixed(1)} KB gz, budget is ${GRID_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
+  );
+});
+
+test('wickchart-paper plugin stays under its (smaller) gzip budget', () => {
+  let total = 0;
+  const parts = [];
+  for (const f of PAPER_FILES) {
+    const n = gz(f);
+    total += n;
+    parts.push(`${f}: ${(n / 1024).toFixed(1)} KB gz`);
+  }
+  assert.ok(
+    total <= PAPER_BUDGET_GZ,
+    `wickchart-paper is ${(total / 1024).toFixed(1)} KB gz, budget is ${PAPER_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
   );
 });
