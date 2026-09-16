@@ -48,9 +48,19 @@ const REGISTRY = new Map(BUILTIN_INDICATORS);
  *  (posting the epoch snapshot costs more than the compute it saves). */
 const WORKER_MIN_BARS = 50000;
 /** Returned while an off-thread compute is in flight: no lines yet, and —
- *  like a failed compute — every renderer draws nothing. A shared object:
- *  the real series replaces it in the cache when the result lands. */
+ *  like a failed compute — every renderer draws nothing. */
 const PENDING_SERIES = { lines: [], histogram: null };
+/**
+ * Built-ins a streamed tick can update by recomputing a bounded tail with
+ * the SAME batch definition (window indicators exactly, recursive ones
+ * converge geometrically). Excluded: obv/vwap are cumulative over all
+ * history, supertrend is a path-dependent state machine — no tail can
+ * patch those; they keep the full-recompute behavior.
+ */
+const ONLINE_SKIP = new Set(['obv', 'vwap', 'supertrend']);
+/** Tail warm-up bars per tick: past the recursion decay of any realistic
+ *  period (~10×), and still ~0.1 ms of work per indicator. */
+const ONLINE_WARMUP = 400;
 /** Per-chart worker session ids (see _workerCompute / src/worker-core.js). */
 let CHART_SID = 0;
 
@@ -293,6 +303,9 @@ class WickChart extends HTMLElementBase {
       this._epoch = 0;
       this._workerCache = { epoch: -1, map: {}, pending: {}, sent: -1 };
       this._sid = ++CHART_SID;
+      // incremental tick updates: { epoch, map: key → { v, res } } — the
+      // freshest series per key, patched in place by _onlineTick
+      this._onlineSeries = { epoch: -1, map: {} };
 
       this._pointers = new Map();
       this._pan = null;
@@ -689,6 +702,9 @@ class WickChart extends HTMLElementBase {
         this._computeDt();
       }
       this._version++;
+      // a live tick (append / forming-bar replace) patches every
+      // online-capable series in O(warm-up) before the next render
+      if (live) this._onlineTick();
       // Alerts run after the dataset AND the version are updated, so scripted
       // predicates evaluate over the bar that just arrived rather than
       // re-reading the previous version's memoized series.
@@ -1545,24 +1561,26 @@ class WickChart extends HTMLElementBase {
 
     /** Compute (and cache per data version) an indicator entry's series. */
     _indicatorSeries(entry) {
+      {
+        // incremental path first: a series patched for this exact version
+        // by _onlineTick is the freshest thing there is
+        const on = this._onlineSeries;
+        const cur = on.epoch === this._epoch ? on.map['ind:' + entry.key] : null;
+        if (cur && cur.v === this._version) return cur.res;
+      }
       if (this._cache.v !== this._version) {
         this._cache = { v: this._version, map: {} };
       }
       const k = 'ind:' + entry.key;
       if (!this._cache.map[k]) {
         // Worker compute path: built-in indicators over big histories run
-        // off the main thread. A structured clone of a million bar objects
-        // costs ~1 s — the snapshot crosses as six transferable Float64Arrays
-        // (~25 ms) instead, and is sent once per data epoch. Custom and
-        // scripted indicators are closures and cannot cross the boundary:
-        // they stay on the sync path, as does everything below
-        // WORKER_MIN_BARS.
+        // off the main thread. The dataset crosses once per data epoch as
+        // six transferable Float64Arrays (~25 ms/M bars — cloning objects
+        // would cost ~1 s). Closures (custom/scripted defs) can't cross;
+        // neither can anything below WORKER_MIN_BARS — both stay sync.
         const pool = WickChart._workerPool;
-        if (
-          pool && pool.available && this._workerOn &&
-          this._data.length >= WORKER_MIN_BARS &&
-          BUILTIN_INDICATORS.get(entry.name) === entry.def
-        ) {
+        if (pool && pool.available && this._workerOn && this._data.length >= WORKER_MIN_BARS &&
+            BUILTIN_INDICATORS.get(entry.name) === entry.def) {
           const wc = this._workerCache;
           if (wc.epoch === this._epoch && wc.map[k]) return wc.map[k];
           this._workerCompute(pool, entry, k);
@@ -1577,8 +1595,86 @@ class WickChart extends HTMLElementBase {
           res = null;
         }
         this._cache.map[k] = normalizeIndicatorResult(res);
+        this._seedOnline(k, entry, this._cache.map[k]);
       }
       return this._cache.map[k];
+    }
+
+    /**
+     * After a live stream tick (append or forming-bar replace), patch every
+     * online-capable series by recomputing a bounded tail with the same
+     * batch definition — O(warm-up) instead of a full-history recompute per
+     * indicator per tick. Bases are seeded by the sync or worker path; bulk
+     * loads (epoch changes) reseed automatically.
+     */
+    _onlineTick() {
+      const d = this._data;
+      const on = this._onlineSeries;
+      if (!d.length || on.epoch !== this._epoch) return;
+      for (const entry of this._ind.overlays.concat(this._ind.panes)) {
+        const k = 'ind:' + entry.key;
+        const cur = on.map[k];
+        if (!cur || ONLINE_SKIP.has(entry.name) || BUILTIN_INDICATORS.get(entry.name) !== entry.def) {
+          continue;
+        }
+        if (this._patchSeriesTail(cur.res, entry, d)) cur.v = this._version;
+        else delete on.map[k]; // length mismatch etc. — reseed on the next compute
+      }
+    }
+
+    /** Recompute the last K bars of one series in place (K = max(400,
+     *  10×period), clamped to the data). False when the series and data
+     *  lengths can't line up — the caller drops the base and reseeds. */
+    _patchSeriesTail(res, entry, d) {
+      let p = 0;
+      for (const v of Object.values(entry.params || {})) {
+        if (Number.isFinite(+v) && +v > p) p = +v;
+      }
+      const K = Math.min(d.length - 1, Math.max(ONLINE_WARMUP, p * 10));
+      if (K < 2 || !res.lines.length) return false;
+      let tail;
+      try {
+        tail = normalizeIndicatorResult(
+          entry.def.compute(d.slice(d.length - 1 - K), { ...entry.params, anchor: this._vwapAnchor })
+        );
+      } catch (_) {
+        return false;
+      }
+      const want = d.length;
+      const base = want - 1 - K; // data index of tail[0]
+      // Only the last `p` values can have changed (window indicators depend
+      // on the trailing window alone; recursive ones only move the new bar).
+      // Writing deeper would replace good full-history values with the
+      // tail's own warm-up error.
+      const from = Math.max(base, want - 1 - p);
+      const patch = (dst, src) => {
+        if (!Array.isArray(src) || src.length !== K + 1) return false;
+        if (dst.length === want - 1) dst.push(src[src.length - 1]); // a bar was appended
+        else if (dst.length !== want) return false;
+        for (let di = from; di < want; di++) {
+          const v = src[di - base];
+          if (v != null || dst[di] == null) dst[di] = v; // warm-up null never clobbers
+        }
+        return true;
+      };
+      for (let i = 0; i < res.lines.length; i++) {
+        const t = tail.lines[i];
+        if (!t || !patch(res.lines[i].values, t.values)) return false;
+      }
+      if (Array.isArray(res.histogram) && !patch(res.histogram, tail.histogram)) return false;
+      return true;
+    }
+
+    /** Remember a fresh series as the base for incremental tick updates
+     *  (online-capable builtins only). */
+    _seedOnline(k, entry, res) {
+      if (ONLINE_SKIP.has(entry.name) || BUILTIN_INDICATORS.get(entry.name) !== entry.def) return;
+      const on = this._onlineSeries;
+      if (on.epoch !== this._epoch) {
+        on.epoch = this._epoch;
+        on.map = {};
+      }
+      on.map[k] = { v: this._version, res };
     }
 
     /** Bar count from which the worker path engages (below it, sync wins). */
@@ -1623,7 +1719,7 @@ class WickChart extends HTMLElementBase {
           type: 'indicator', sid: this._sid, epoch,
           name: entry.name, params: { ...entry.params, anchor: this._vwapAnchor },
         })
-        .then((res) => this._workerArrived(k, epoch, res))
+        .then((res) => this._workerArrived(k, epoch, res, entry))
         .catch((err) => {
           delete wc.pending[k];
           if (err && err.stale && wc.sent === this._epoch) {
@@ -1634,12 +1730,15 @@ class WickChart extends HTMLElementBase {
         });
     }
 
-    _workerArrived(k, epoch, res) {
+    _workerArrived(k, epoch, res, entry) {
       const wc = this._workerCache;
       delete wc.pending[k];
       if (wc.epoch !== epoch) return; // a newer bulk load won — drop the stale line
       const norm = normalizeIndicatorResult(res);
       wc.map[k] = norm;
+      // the worker base doubles as the seed for incremental tick updates,
+      // so streamed ticks stay fresh instead of waiting for the next load
+      if (entry) this._seedOnline(k, entry, norm);
       this._fire('worker', { key: k, epoch });
       this._invalidate();
     }

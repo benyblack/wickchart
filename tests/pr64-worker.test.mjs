@@ -165,6 +165,7 @@ function makeWorkerChart(n = 60_000) {
     _cache: { v: -1, map: {} },
     _workerOn: true,
     _workerCache: { epoch: -1, map: {}, pending: {}, sent: -1 },
+    _onlineSeries: { epoch: -1, map: {} },
     _sid: 1,
     _vwapAnchor: null,
     _connected: true,
@@ -178,7 +179,7 @@ function makeWorkerChart(n = 60_000) {
       this.invalidated++;
     },
   };
-  for (const m of ['_indicatorSeries', '_workerCompute', '_workerArrived', '_workerCols']) {
+  for (const m of ['_indicatorSeries', '_workerCompute', '_workerArrived', '_workerCols', '_seedOnline']) {
     chart[m] = P[m].bind(chart);
   }
   chart.pool = {
@@ -230,30 +231,39 @@ test('the worker branch serves cached epoch results across streamed ticks', asyn
 test('eligibility: small datasets, custom defs and a dead pool stay sync', async () => {
   const chart = makeWorkerChart(60_000);
   try {
-    // below the threshold → the sync path computes in place
+    // below the threshold → the sync path computes in place (each phase
+    // changes the data, so the version moves with it — as in the element)
     chart._data = bars(100);
+    chart._version++;
     chart._cache = { v: -1, map: {} };
+    chart._onlineSeries = { epoch: -1, map: {} };
     const res = chart._indicatorSeries(smaEntry);
     assert.ok(res && res.lines[0].values.length === 100, 'computed synchronously');
     assert.equal(chart.tasks.length, 0);
 
     // a custom def under the same name (registry override) must not cross
     chart._data = bars(60_000);
+    chart._version++;
     chart._cache = { v: -1, map: {} };
+    chart._onlineSeries = { epoch: -1, map: {} };
     const custom = chart._indicatorSeries({ name: 'sma', def: { compute: () => [1] }, params: {}, key: 'x' });
     assert.deepEqual(custom.lines[0].values, [1], 'closure def computed sync');
     assert.equal(chart.tasks.length, 0);
 
     // pool marked unavailable → sync, transparently
     chart.pool.available = false;
+    chart._version++;
     chart._cache = { v: -1, map: {} };
+    chart._onlineSeries = { epoch: -1, map: {} };
     assert.equal(chart._indicatorSeries(smaEntry).lines[0].values.length, 60_000, 'sync fallback');
     assert.equal(chart.tasks.length, 0);
     chart.pool.available = true;
 
     // worker attr off → sync even at scale
     chart._workerOn = false;
+    chart._version++;
     chart._cache = { v: -1, map: {} };
+    chart._onlineSeries = { epoch: -1, map: {} };
     assert.equal(chart.tasks.length, 0);
     assert.ok(chart._indicatorSeries(smaEntry).lines[0].values.length === 60_000);
   } finally {

@@ -107,3 +107,33 @@ test('a fresh bulk load repaints with the new epoch, not the stale series', asyn
   }));
   expect(state.len).toBe(60_000);
 });
+
+test('streamed ticks freshen the worker-computed series incrementally', async ({ page }) => {
+  await openFixture(page, '?worker');
+  await page.waitForFunction(
+    () => window.chart._workerCache && window.chart._workerCache.map['ind:sma:20'],
+    null,
+    { timeout: 20000 }
+  );
+
+  // before PR #65 the worker series stayed frozen at the epoch; now the
+  // online tail patches it in place on every tick
+  const before = await page.evaluate(() => {
+    const v = window.chart._workerCache.map['ind:sma:20'].lines[0].values;
+    return { last: v[v.length - 1], ref: v };
+  });
+  const after = await page.evaluate(async () => {
+    const d = window.chart.data;
+    const last = d[d.length - 1];
+    window.chart.update({ ...last, close: last.close * 1.05, high: last.close * 1.06 });
+    await window.settle();
+    const v = window.chart._workerCache.map['ind:sma:20'].lines[0].values;
+    let sum = 0;
+    for (let i = d.length - 20; i < d.length; i++) sum += d[i].close;
+    return { last: v[v.length - 1], sameArray: v === window.__ref, naive: sum / 20 };
+  });
+  // the forming bar's SMA now reflects the tick — matching the naive mean,
+  // not the frozen epoch value
+  expect(Math.abs(after.last - after.naive)).toBeLessThan(1e-9);
+  expect(after.last).not.toBe(before.last);
+});

@@ -23,6 +23,7 @@ function makeChart(bars = []) {
     _hover: null,
     _dt: 3600e3,
     _alertEval: 'live',
+    _onlineSeries: { epoch: -1, map: {} },
     _lastClosedIdx: -1,
     fires: [],
     _invalidate() {},
@@ -32,6 +33,7 @@ function makeChart(bars = []) {
   };
   for (const m of [
     'addAlert', '_checkAlerts', '_predicateCache', 'update', '_fireAlert',
+    '_onlineTick',
     '_lastClosedIndex', '_syncClosedIdx', '_evalMode',
   ]) {
     chart[m] = P[m].bind(chart);
