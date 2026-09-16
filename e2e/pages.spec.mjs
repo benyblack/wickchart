@@ -20,6 +20,7 @@ const PAGES = [
   '/demo/index.html',
   '/demo/react.html',
   '/demo/declarative.html',
+  '/demo/worker.html',
 ];
 
 const PHONE = { width: 412, height: 915 };

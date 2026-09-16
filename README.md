@@ -91,6 +91,28 @@ the bar size — tune it per instrument. The machinery is exported too:
 `import { TickBarAggregator, aggregateTrades } from 'wickchart/feed'` to pipe
 any trade stream through the same aggregator.
 
+## Web Worker compute path (1M-bar histories)
+
+One extra import, one attribute — and the built-in indicators compute in a
+Web Worker, built for million-bar histories:
+
+```js
+import 'wickchart/worker';   // once — wires a shared worker pool into the chart
+
+<wick-chart worker indicators="sma:20 bb:20 rsi:14"></wick-chart>
+```
+
+The dataset crosses once per bulk load as six transferable `Float64Array`s
+(~25 ms per million bars; a structured clone of bar objects would cost ~1 s),
+and indicator tasks reference it worker-side. First paint of every indicator
+line happens off the main thread; `wick:worker` fires as results land.
+Engages at 50k+ bars with built-in indicators (custom/scripted defs are
+closures and stay sync, as does everything below the threshold); results are
+cached per data epoch, so streamed ticks stop recomputing the full series per
+bar. No worker available? Everything silently stays synchronous — the
+attribute is an optimization, never a dependency. Live demo with freeze
+numbers: **[demo/worker.html](./demo/worker.html)**.
+
 ---
 
 ## Why another chart library?
