@@ -33,7 +33,7 @@ import {
   AI_TOOLS, aiPromptText, applyChartOps,
   calcVolCone, normalizeScenario, normalizeRiskPlan, PresenceTracker,
   narrateWindow, brushStats,
-  easeInOutCubic, sceneList,
+  easeInOutCubic, sceneList, warnDeprecatedAlias,
 } from './core.js';
 
 /* ------------------------------------------------------------------ *
@@ -1493,8 +1493,11 @@ class WickChart extends HTMLElementBase {
       const cs = getComputedStyle(this);
       // --wick-* is canonical; --hab-* still honored as the 0.x fallback
       const get = (name, fallback) => {
-        const v = cs.getPropertyValue('--wick-' + name).trim() || cs.getPropertyValue('--hab-' + name).trim();
-        return v || fallback;
+        const v = cs.getPropertyValue('--wick-' + name).trim();
+        if (v) return v;
+        const h = cs.getPropertyValue('--hab-' + name).trim();
+        if (h) warnDeprecatedAlias('--hab-* variables are removed in 2.0 — rename to --wick-*');
+        return h || fallback;
       };
       const pal = {};
       for (const k of Object.keys(base)) {
@@ -1504,8 +1507,7 @@ class WickChart extends HTMLElementBase {
             o.push(get('overlay-' + i, base.overlay[i]));
           }
           // allow single overlay color
-          const single =
-            cs.getPropertyValue('--wick-overlay').trim() || cs.getPropertyValue('--hab-overlay').trim();
+          const single = get('overlay', '');
           pal.overlay = single ? base.overlay.map(() => single) : o;
         } else {
           pal[k] = get(k.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase()), base[k]);
@@ -4488,6 +4490,19 @@ class WickChart extends HTMLElementBase {
     }
   }
 
+// 0.x alias events (`hab:*`) keep firing alongside the canonical `wick:*`
+// until 2.0 — but only listeners on the deprecated channel warn (once),
+// so canonical usage stays silent.
+if (WickChart.prototype.addEventListener) {
+  const origAddEventListener = WickChart.prototype.addEventListener;
+  WickChart.prototype.addEventListener = function (type) {
+    if (typeof type === 'string' && type.startsWith('hab:')) {
+      warnDeprecatedAlias('hab:* events are removed in 2.0 — listen for wick:*');
+    }
+    return origAddEventListener.apply(this, arguments);
+  };
+}
+
 if (typeof customElements !== 'undefined') {
   if (!customElements.get('wick-chart')) {
     customElements.define('wick-chart', WickChart);
@@ -4495,7 +4510,12 @@ if (typeof customElements !== 'undefined') {
   // 0.x alias: same element under its old tag name (deprecated, removed in 2.0)
   if (!customElements.get('hab-chart')) {
     /** @deprecated use <wick-chart> */
-    class HabChart extends WickChart {}
+    class HabChart extends WickChart {
+      constructor() {
+        super();
+        warnDeprecatedAlias('<hab-chart> is removed in 2.0 — use <wick-chart>');
+      }
+    }
     customElements.define('hab-chart', HabChart);
   }
 }

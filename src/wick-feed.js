@@ -40,6 +40,7 @@ import {
   openBinanceTradeSocket,
   normalizeTrades,
 } from './feeds.js';
+import { warnDeprecatedAlias } from './core.js';
 
 const LIVE_TICK_MS = 650;
 
@@ -455,6 +456,19 @@ class WickFeed extends HTMLElementBase {
   }
 }
 
+// 0.x alias events (`hab-feed:*`) keep firing alongside the canonical
+// `wick-feed:*` until 2.0 — but only listeners on the deprecated channel
+// warn (once), so canonical usage stays silent.
+if (WickFeed.prototype.addEventListener) {
+  const origAddEventListener = WickFeed.prototype.addEventListener;
+  WickFeed.prototype.addEventListener = function (type) {
+    if (typeof type === 'string' && type.startsWith('hab-feed:')) {
+      warnDeprecatedAlias('hab-feed:* events are removed in 2.0 — listen for wick-feed:*');
+    }
+    return origAddEventListener.apply(this, arguments);
+  };
+}
+
 if (typeof customElements !== 'undefined') {
   if (!customElements.get('wick-feed')) {
     customElements.define('wick-feed', WickFeed);
@@ -462,7 +476,12 @@ if (typeof customElements !== 'undefined') {
   // 0.x alias: same element under its old tag name (deprecated, removed in 2.0)
   if (!customElements.get('hab-feed')) {
     /** @deprecated use <wick-feed> */
-    class HabFeed extends WickFeed {}
+    class HabFeed extends WickFeed {
+      constructor() {
+        super();
+        warnDeprecatedAlias('<hab-feed> is removed in 2.0 — use <wick-feed>');
+      }
+    }
     customElements.define('hab-feed', HabFeed);
   }
 }
