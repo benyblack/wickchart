@@ -82,7 +82,11 @@ const GRID_FILES = ['plugins/grid/core.mjs', 'plugins/grid/grid.mjs'];
 const PAPER_BUDGET_GZ = 7 * 1024;
 const PAPER_FILES = ['plugins/paper/core.mjs', 'plugins/paper/paper.mjs'];
 
-const gz = (f) => gzipSync(readFileSync(f)).length;
+// The gzip budgets measure canonical content: CRLF is a checkout artifact
+// (core.autocrlf on Windows), not bytes anyone ships — the registry and CI
+// both normalize to LF, so the test does too before measuring.
+const readLf = (f) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
+const gz = (f) => gzipSync(Buffer.from(readLf(f), 'utf8')).length;
 
 test('main entry stays under the gzip budget', () => {
   let total = 0;

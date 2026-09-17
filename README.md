@@ -123,6 +123,28 @@ fresh instead of waiting for the next bulk load. Cumulative indicators
 (`obv`, `vwap`) and the stateful `supertrend` are excluded and keep the
 full-recompute behavior.
 
+## Report export (branded snapshots)
+
+One shareable PNG — chart, visible-range stats, watermark — composed from
+public surfaces only, as an opt-in entry:
+
+```js
+import { exportReport, downloadReport } from 'wickchart/report';
+
+const url = await exportReport(chart);   // PNG data URL
+const blob = await exportReport(chart, { as: 'blob' });
+await downloadReport(chart, 'btc-1h.png', { source: 'binance: BTCUSDT' });
+```
+
+The header carries the title (the chart's `label` by default), the visible
+range and the brand; the chart keeps its full DPR resolution with a corner
+watermark; the stats grid covers the visible window (return, annualized
+vol, max drawdown, bars, up/down, average volume, high, low); the footer
+credits your `source` and a timestamp. Theme follows the chart's own
+`--wick-*` CSS variables (or `theme: 'dark' | 'light'`), scale 1–4.
+`reportModel(chart, opts)` is exported too — plain data, if you want your
+own layout.
+
 ---
 
 ## Why another chart library?

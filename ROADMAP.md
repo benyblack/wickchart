@@ -77,7 +77,7 @@ is suggested priority.
 | ~~Cross-tab co-view~~ ✅ shipped | BroadcastChannel syncs crosshair/markings between two open tabs. Great demo flex, tiny code. | S–M |
 | ~~Sonification toggle~~ ✅ shipped | Pitch maps to price movement — screen-reader traders get trend by ear. Rare a11y win. | S–M |
 | ~~AI-ready data hook~~ ✅ shipped | `chart.getDataWindow()` — structured + markdown summary of the visible window (trend, vol percentile, patterns); demo "Explain" button with copy-to-clipboard. Data stays local. | S |
-| Branded snapshot/report export | exportPNG + stats table + watermark composed into one shareable image. | M |
+| ~~Branded snapshot/report export~~ ✅ shipped | `wickchart/report` — `exportReport(chart, opts)` / `downloadReport()`: header (title, range, brand) + the DPR-crisp chart with a corner watermark + a visible-range stats grid (the same computeStats the panel uses) + a credited footer; themed from the chart's own `--wick-*` variables; pure `reportModel()` exported. Zero core changes. | M |
 | Spread & ratio charts (pane) | ~~`formula="BTC/ETH"` live derived series~~ derived ratio/diff lines shipped in `wickchart-compare` (rebased, raw value in the legend); a dedicated spread *pane* with its own axis stays open — needs core pane support. | M |
 
 ## Track 5 — Engineering & scale (continuous)
@@ -113,8 +113,9 @@ Canvas 2D floor is ~1 ms at our scale — revisit only with profiler evidence).
 4. ~~**Stats panel + measure tool**~~ ✅ shipped
 5. ~~**`getState()/setState()` + URL sharing**~~ ✅ shipped
 
-**Next up (suggested):** the branded snapshot/report export (Track 4) — the
-last open feature item. Tracks 1 and 3's replay follow-up, and Track 5's
-worker compute path + incremental indicators, are complete.
+**Next up (suggested):** every open feature item across Tracks 1–4 has
+shipped, plus Track 5's worker compute path and incremental indicators.
+What remains is polish: semver/changelog policy, i18n + `preset=`
+(S items), and the dedicated spread pane (M) if demand appears.
 
 Each PR lands with the perf gate green (<1 ms default view, <8 ms max zoom-out).
