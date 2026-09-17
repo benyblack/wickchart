@@ -194,13 +194,13 @@ test('story is wired into the chart and interrupted by every input path', () => 
   assert.match(dc, /stopStory\(true\)/, 'disconnect cleans playback');
 });
 
-test('docs cover story mode: API, event, capture, semantics', () => {
-  const docs = read('docs.html');
-  const sec = docs.slice(docs.indexOf('id="story"'), docs.indexOf('id="ai"'));
-  assert.ok(sec.length > 1500, 'story section is substantive');
+test('the plugins hub covers story mode: API, event, capture, semantics', () => {
+  const hub = read('plugins.html');
+  const sec = hub.slice(hub.indexOf('id="narrator"'), hub.indexOf('id="coview"'));
+  assert.ok(sec.length > 1500, 'story coverage is substantive');
   for (const s of ['captureScene', 'playStory', 'stopStory', 'getStory', 'wick:story', 'dwell', 'panMs', 'loop']) {
-    assert.ok(sec.includes(s), `"${s}" missing from the docs section`);
+    assert.ok(sec.includes(s), `"${s}" missing from the hub narrator section`);
   }
-  assert.ok(docs.includes('href="#story"'), 'TOC links the section');
+  assert.ok(hub.includes('href="#narrator"'), 'hub TOC links the section');
   assert.ok(read('README.md').includes('Story mode'), 'README documents story mode');
 });

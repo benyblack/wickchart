@@ -10,6 +10,11 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%236366f1'/%3E%3Crect x='6' y='9' width='3.4' height='7' rx='1' fill='white'/%3E%3Crect x='14.5' y='7' width='3.4' height='5' rx='1' fill='white' opacity='.6'/%3E%3C/svg%3E" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./styles.css" />
+  <!-- the narrator/scenario/ai packages import their shared pure core from
+       wickchart/core; this maps the bare specifier for the in-repo demo -->
+  <script type="importmap">
+    { "imports": { "wickchart/core": "../src/core.js" } }
+  </script>
   <script type="module" src="./app.js"></script>
 </head>
 <body>
