@@ -82,6 +82,14 @@ const GRID_FILES = ['plugins/grid/core.mjs', 'plugins/grid/grid.mjs'];
 const PAPER_BUDGET_GZ = 7 * 1024;
 const PAPER_FILES = ['plugins/paper/core.mjs', 'plugins/paper/paper.mjs'];
 
+// narrator: the guided-playback family (timeline analyzer + walk + story +
+// sonify) as one package. Standalone it measures larger than the ~3.9 KB
+// the same code costs inside the main entry's gzip context — the analyzer
+// primitives stay in wickchart/core (shared with the annotations overlay),
+// so only the playback machinery lives here. Landed at 8.6 KB gz.
+const NARRATOR_BUDGET_GZ = 9 * 1024;
+const NARRATOR_FILES = ['plugins/narrator/core.mjs', 'plugins/narrator/narrator.mjs'];
+
 // The gzip budgets measure canonical content: CRLF is a checkout artifact
 // (core.autocrlf on Windows), not bytes anyone ships — the registry and CI
 // both normalize to LF, so the test does too before measuring.
@@ -254,5 +262,19 @@ test('wickchart-paper plugin stays under its (smaller) gzip budget', () => {
   assert.ok(
     total <= PAPER_BUDGET_GZ,
     `wickchart-paper is ${(total / 1024).toFixed(1)} KB gz, budget is ${PAPER_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
+  );
+});
+
+test('wickchart-narrator plugin stays under its (smaller) gzip budget', () => {
+  let total = 0;
+  const parts = [];
+  for (const f of NARRATOR_FILES) {
+    const n = gz(f);
+    total += n;
+    parts.push(`${f}: ${(n / 1024).toFixed(1)} KB gz`);
+  }
+  assert.ok(
+    total <= NARRATOR_BUDGET_GZ,
+    `wickchart-narrator is ${(total / 1024).toFixed(1)} KB gz, budget is ${NARRATOR_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
   );
 });

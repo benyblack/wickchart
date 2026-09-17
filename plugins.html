@@ -4,11 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WickChart — Plugins</title>
-  <meta name="description" content="The wickchart plugin family: drawings, sessions, replay, compare, navigator, alerts+, layouts, signals, tape, grid and paper — each a zero-dependency opt-in package, documented with a live playground." />
+  <meta name="description" content="The wickchart plugin family: drawings, sessions, replay, compare, navigator, alerts+, layouts, signals, tape, grid, paper and narrator — each a zero-dependency opt-in package, documented with a live playground." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%236366f1'/%3E%3Crect x='6' y='9' width='3.4' height='7' rx='1' fill='white'/%3E%3Crect x='14.5' y='7' width='3.4' height='5' rx='1' fill='white' opacity='.6'/%3E%3C/svg%3E" />
+  <!-- the narrator package imports its analyzer from wickchart/core; this
+       maps the bare specifier for the in-repo playgrounds (npm/bundler users
+       get it from node_modules instead) -->
+  <script type="importmap">
+    { "imports": { "wickchart/core": "./src/core.js" } }
+  </script>
   <script type="module" src="./src/wick-feed.js"></script>
   <style>
     :root {
@@ -193,12 +199,13 @@
         <li><a href="#tape">tape — time &amp; sales<span class="pkg">tape</span></a></li>
         <li><a href="#grid">grid — multi-chart sync<span class="pkg">grid</span></a></li>
         <li><a href="#paper">paper — paper trading<span class="pkg">paper</span></a></li>
+        <li><a href="#narrator">narrator — guided playback<span class="pkg">narrator</span></a></li>
       </ul>
     </aside>
 
     <main>
       <section id="start">
-        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">11 packages</span></h2>
+        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">12 packages</span></h2>
         <p>Everything here is an <b>opt-in package</b>, not core bytes: each plugin is a separate npm package, zero dependencies, built only on wickchart's public <a href="./docs.html#plugins">layer API</a> and kept small by its own CI gzip budget. The core chart stays lean — you pay bytes only for what you attach, and everything detaches cleanly.</p>
         <p>Every plugin follows the same shape: <code>attach</code> → configure → <code>detach</code>. Install any of them next to the chart:</p>
         <div class="codewrap"><pre class="code"><span class="tag">npm</span> install wickchart wickchart-sessions   <span class="cmt">// …or wickchart-draw, wickchart-tape, …</span>
@@ -218,6 +225,7 @@
           <tr><td><a href="#layouts">wickchart-layouts</a></td><td>named workspace snapshots — save/load/export full chart state</td><td>2.3 KB</td><td>≥ 1.4</td></tr>
           <tr><td><a href="#signals">wickchart-signals</a></td><td>engulfing / pin bar / inside-bar badges with hover explanations</td><td>3.6 KB</td><td>≥ 1.4</td></tr>
           <tr><td><a href="#tape">wickchart-tape</a></td><td>time &amp; sales — live prints docked below the chart, trades→bars</td><td>4.6 KB</td><td>≥ 1.6</td></tr>
+          <tr><td><a href="#narrator">wickchart-narrator</a></td><td>guided playback — narrated timeline, bar-walk, sonification, story tours</td><td>8.6 KB</td><td>≥ 1.4</td></tr>
         </table>
         <div class="note"><b>Dock note:</b> the navigator and the tape both dock through the 1.6 <code>insetBottom</code> hook and share the single strip at the bottom of the canvas — attach one or the other. Every playground below is live: click around.</div>
       </section>
@@ -504,6 +512,36 @@ paper.<span class="attr">stats</span>;             <span class="cmt">// equity, 
         </div>
         <div class="note">Peer: <b>wickchart ≥ 1.4</b>, pairs with <b>wickchart-replay</b>. Shares the bottom dock with the navigator and tape (attach one at a time for a clean strip).</div>
       </section>
+
+      <section id="narrator">
+        <h2>wickchart-narrator <a class="anchor" href="#narrator">#</a> <span class="size">8.6 KB gz</span></h2>
+        <p>Guided playback: the chart as a story. <b>narrate()</b> turns a window into an ordered timeline — pivot highs/lows, volume spikes, gaps, RSI divergences and derived legs ("+12.4% over 38 bars"). <b>walk()</b> slides the viewport through history while <code>wick:walk</code> events announce each step's events; <b>playRange()</b> and the <code>sonify</code> attribute make the same data audible (a pitch sweep of the visible bars, one blip per crosshair bar); <b>captureScene() / playStory()</b> record chart state as scenes and replay them as a narrated tour — camera eases, indicators flip, scenarios set and clear. Any user input interrupts playback.</p>
+        <div class="codewrap"><pre class="code"><span class="tag">import</span> { attachNarrator } <span class="tag">from</span> <span class="str">'wickchart-narrator'</span>;
+
+<span class="tag">const</span> narrator = <span class="attr">attachNarrator</span>(chart);   <span class="cmt">// methods land on the instance</span>
+chart.<span class="attr">narrate</span>({ from, to });        <span class="cmt">// the event timeline</span>
+chart.<span class="attr">walk</span>({ from: <span class="str">0</span>, speed: <span class="str">120</span> });      <span class="cmt">// narrated viewport replay</span>
+chart.<span class="attr">playRange</span>();                   <span class="cmt">// ~4s pitch sweep (needs a click first)</span>
+<span class="tag">const</span> tour = [
+  chart.<span class="attr">captureScene</span>(<span class="str">'Overview'</span>, <span class="str">'The full picture'</span>),
+  { <span class="attr">title</span>: <span class="str">'The breakout'</span>, <span class="attr">range</span>: { from, to }, <span class="attr">indicators</span>: <span class="str">'sma:20'</span> },
+];
+chart.<span class="attr">playStory</span>(tour, { <span class="attr">loop</span>: <span class="str">true</span> });      <span class="cmt">// wick:story narrates each scene</span>
+narrator.<span class="attr">detach</span>();
+
+chart.<span class="attr">addEventListener</span>(<span class="str">'wick:walk'</span>, (e) =&gt; …);  <span class="cmt">// { phase: step|end|stop, index, events }</span></pre></div>
+        <p>Scenes are plain data — title, note, a time <code>range</code>, <code>indicators</code>, series <code>type</code>, <code>overlays</code>, <code>scenario</code>/<code>riskPlan</code> (or <code>null</code> to clear) and a <code>dwell</code> — capped at 20, junk dropped. The timeline analyzer (<code>wickchart-narrator/core</code>) is pure and DOM-free; it imports the annotation detector from <code>wickchart/core</code> so the narrator and the annotations overlay can never disagree. First package of the 2.0 split: attaching shadows the core's own identical methods until 2.0 removes them.</p>
+        <div class="demo-card">
+          <div class="demo-head">
+            <span class="t">Playground</span><span class="spacer"></span>
+            <span id="nar-btns"></span>
+          </div>
+          <wick-feed for="ex-nar" demo="BTC" tf="1h" limit="400"></wick-feed>
+          <wick-chart id="ex-nar" label="BTC · 1h · narrator"></wick-chart>
+          <div class="foot" id="nar-foot">walk replays history with live captions — the tour eases through three scenes; touching the chart interrupts either</div>
+        </div>
+        <div class="note">Peer: <b>wickchart ≥ 1.4</b> (the one family member that imports <code>wickchart/core</code> — from a CDN, map that specifier with an import map). Part of the <a href="https://github.com/benyblack/wickchart/blob/main/ROADMAP-V2.md">2.0 plan</a>.</div>
+      </section>
     </main>
   </div>
 
@@ -519,6 +557,7 @@ paper.<span class="attr">stats</span>;             <span class="cmt">// equity, 
     import { attachTape } from './plugins/tape/tape.mjs';
     import './plugins/grid/grid.mjs';
     import { attachPaper } from './plugins/paper/paper.mjs';
+    import { attachNarrator } from './plugins/narrator/narrator.mjs';
 
     const $ = (id) => document.getElementById(id);
 
@@ -928,6 +967,69 @@ paper.<span class="attr">stats</span>;             <span class="cmt">// equity, 
         start();
         if (v === 'play') { replay.play(4); playing = true; }
         else { replay.pause(); playing = false; }
+      });
+    }
+
+    /* ---------- narrator ---------- */
+    {
+      const c = $('ex-nar');
+      const foot = $('nar-foot');
+      let nar = null;
+      let crossed = 0;
+      const ensure = () => {
+        if (nar) return nar;
+        nar = attachNarrator(c);
+        c.addEventListener('wick:walk', (e) => {
+          const d = e.detail;
+          if (d.phase === 'step') {
+            crossed += d.events.length;
+            if (d.events.length) {
+              const ev = d.events[d.events.length - 1];
+              foot.textContent = 'bar ' + d.index + ' — ' + ev.note;
+            }
+          } else if (d.phase === 'end') {
+            foot.textContent = 'walk complete — ' + crossed + ' narrated events crossed';
+          } else if (d.phase === 'stop') {
+            foot.textContent = 'walk interrupted';
+          }
+        });
+        c.addEventListener('wick:story', (e) => {
+          const d = e.detail;
+          if (d.phase === 'scene') foot.textContent = 'scene ' + (d.index + 1) + '/' + d.total + ' — ' + (d.title || 'untitled');
+          else if (d.phase === 'end') foot.textContent = 'tour complete — ' + d.total + ' scenes';
+          else if (d.phase === 'stop') foot.textContent = 'tour interrupted';
+        });
+        return nar;
+      };
+      mkBtn($('nar-btns'), 'Walk', 'replay history with live captions', () => {
+        ensure();
+        c.stopStory();
+        crossed = 0;
+        c.walk({ speed: 60 });
+        foot.textContent = "walking — captions follow the narrator's events";
+      });
+      mkBtn($('nar-btns'), 'Tour', 'capture three scenes and play them back', () => {
+        ensure();
+        c.stopWalk();
+        const d = c.data;
+        if (!d || !d.length) return;
+        const T = (i) => d[Math.max(0, Math.min(d.length - 1, Math.round(i)))].time;
+        c.playStory([
+          { title: 'The whole move', range: { from: T(0), to: T(d.length - 1) }, dwell: 1500 },
+          { title: 'Zoom — the middle third', range: { from: T(d.length * 0.3), to: T(d.length * 0.6) }, dwell: 1500 },
+          { title: 'With averages', range: { from: T(d.length * 0.5), to: T(d.length - 1) }, indicators: 'sma:20 ema:50', dwell: 1800 },
+        ], { panMs: 900 });
+      });
+      mkBtn($('nar-btns'), 'Ear sweep', 'sonify the visible range (~4s)', () => {
+        ensure();
+        c.playRange();
+        foot.textContent = 'sweeping — pitch follows price (audio needs the click)';
+      });
+      mkBtn($('nar-btns'), 'Stop', 'interrupt any playback', () => {
+        if (!nar) return;
+        c.stopWalk();
+        c.stopStory();
+        foot.textContent = 'stopped — any chart input interrupts playback too';
       });
     }
   </script>
