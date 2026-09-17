@@ -202,12 +202,13 @@
         <li><a href="#narrator">narrator — guided playback<span class="pkg">narrator</span></a></li>
         <li><a href="#coview">coview — co-viewing<span class="pkg">coview</span></a></li>
         <li><a href="#scenario">scenario — planning<span class="pkg">scenario</span></a></li>
+        <li><a href="#ai">ai — agent surface<span class="pkg">ai</span></a></li>
       </ul>
     </aside>
 
     <main>
       <section id="start">
-        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">14 packages</span></h2>
+        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">15 packages</span></h2>
         <p>Everything here is an <b>opt-in package</b>, not core bytes: each plugin is a separate npm package, zero dependencies, built only on wickchart's public <a href="./docs.html#plugins">layer API</a> and kept small by its own CI gzip budget. The core chart stays lean — you pay bytes only for what you attach, and everything detaches cleanly.</p>
         <p>Every plugin follows the same shape: <code>attach</code> → configure → <code>detach</code>. Install any of them next to the chart:</p>
         <div class="codewrap"><pre class="code"><span class="tag">npm</span> install wickchart wickchart-sessions   <span class="cmt">// …or wickchart-draw, wickchart-tape, …</span>
@@ -230,6 +231,7 @@
           <tr><td><a href="#narrator">wickchart-narrator</a></td><td>guided playback — narrated timeline, bar-walk, sonification, story tours</td><td>8.6 KB</td><td>≥ 1.4</td></tr>
           <tr><td><a href="#coview">wickchart-coview</a></td><td>cross-tab co-viewing — presence bands, shared crosshair, open protocol</td><td>5.0 KB</td><td>≥ 1.4</td></tr>
           <tr><td><a href="#scenario">wickchart-scenario</a></td><td>planning — σ-cone projections, ghost paths, R-multiple risk plans</td><td>2.1 KB</td><td>≥ 1.4</td></tr>
+          <tr><td><a href="#ai">wickchart-ai</a></td><td>the chart as an LLM tool surface — manifest, prompt, validated ops</td><td>2.2 KB</td><td>≥ 1.4</td></tr>
         </table>
         <div class="note"><b>Dock note:</b> the navigator and the tape both dock through the 1.6 <code>insetBottom</code> hook and share the single strip at the bottom of the canvas — attach one or the other. Every playground below is live: click around.</div>
       </section>
@@ -604,6 +606,32 @@ scenario.<span class="attr">detach</span>();</pre></div>
         </div>
         <div class="note">Peer: <b>wickchart ≥ 1.4</b>, imports the shared validators/cone math from <code>wickchart/core</code> (CDN users: import map). Part of the <a href="https://github.com/benyblack/wickchart/blob/main/ROADMAP-V2.md">2.0 plan</a>.</div>
       </section>
+
+      <section id="ai">
+        <h2>wickchart-ai <a class="anchor" href="#ai">#</a> <span class="size">2.2 KB gz</span></h2>
+        <p>The chart as an <b>LLM tool surface</b> — and nothing that touches the network. <code>aiTools()</code> is a self-describing tool manifest (get_data_window, set_indicators, set_overlays, add_alert, set_view, set_type, …); <code>aiPrompt()</code> is the matching system prompt; <code>aiContext()</code> grounds the model in the live state plus the visible-window summary; <code>applyAI(ops)</code> runs model answers through a <b>validated dispatcher</b> — ops are whitelisted, args checked, and a bad op resolves <code>{ok:false, error}</code> instead of throwing so the agent can self-correct. <code>ask(instruction, {run})</code> wires it end to end with your model call.</p>
+        <div class="codewrap"><pre class="code"><span class="tag">import</span> { attachAI } <span class="tag">from</span> <span class="str">'wickchart-ai'</span>;
+
+<span class="tag">const</span> ai = <span class="attr">attachAI</span>(chart);          <span class="cmt">// methods land on the instance</span>
+<span class="tag">const</span> { results } = <span class="attr">await</span> chart.<span class="attr">ask</span>(<span class="str">'add RSI and mark the demand zone'</span>, {
+  <span class="attr">run</span>: <span class="tag">async</span> (payload) =&gt; (<span class="tag">await</span> callMyLLM(payload)).ops,  <span class="cmt">// your model, your keys</span>
+});
+<span class="cmt">// or two-step: build the payload, ship it anywhere, apply the answer</span>
+<span class="tag">const</span> { payload } = <span class="attr">await</span> chart.<span class="attr">ask</span>(<span class="str">'switch to a line chart'</span>);
+chart.<span class="attr">applyAI</span>([{ <span class="attr">tool</span>: <span class="str">'set_type'</span>, <span class="attr">args</span>: { <span class="attr">type</span>: <span class="str">'line'</span> } }]);
+ai.<span class="attr">detach</span>();</pre></div>
+        <p>The chart itself never touches the network — <code>run</code> is yours, so keys and endpoints stay in your code. <code>getDataWindow()</code> stays in core by design (a data API, not an LLM API); <code>ask()</code> composes it. The manifest + prompt + dispatcher are pure: <code>wickchart-ai/core</code>. Fourth and final package of the 2.0 split — attaching shadows the core's identical methods until 2.0 removes them.</p>
+        <div class="demo-card">
+          <div class="demo-head">
+            <span class="t">Playground</span><span class="spacer"></span>
+            <span id="ai-btns"></span>
+          </div>
+          <wick-feed for="ex-ai" demo="BTC" tf="1h" limit="400"></wick-feed>
+          <wick-chart id="ex-ai" label="BTC · 1h · ai"></wick-chart>
+          <div class="foot" id="ai-foot">the manifest + prompt + context, and a canned op batch applied through the validated dispatcher — no network involved</div>
+        </div>
+        <div class="note">Peer: <b>wickchart ≥ 1.4</b>, imports the manifest/prompt/dispatcher from <code>wickchart/core</code> (CDN users: import map). Part of the <a href="https://github.com/benyblack/wickchart/blob/main/ROADMAP-V2.md">2.0 plan</a>.</div>
+      </section>
     </main>
   </div>
 
@@ -622,6 +650,7 @@ scenario.<span class="attr">detach</span>();</pre></div>
     import { attachNarrator } from './plugins/narrator/narrator.mjs';
     import { attachCoview } from './plugins/coview/coview.mjs';
     import { attachScenario } from './plugins/scenario/scenario.mjs';
+    import { attachAI } from './plugins/ai/ai.mjs';
 
     const $ = (id) => document.getElementById(id);
 
@@ -1185,6 +1214,41 @@ scenario.<span class="attr">detach</span>();</pre></div>
         if (!plan) return;
         c.clearRiskPlan();
         foot.textContent = 'risk plan cleared';
+      });
+    }
+
+    /* ---------- ai ---------- */
+    {
+      const c = $('ex-ai');
+      const foot = $('ai-foot');
+      let ai = null;
+      const ensure = () => {
+        if (ai) return ai;
+        ai = attachAI(c);
+        return ai;
+      };
+      mkBtn($('ai-btns'), 'Prompt', 'the agent system prompt + tool manifest', () => {
+        ensure();
+        const tools = c.aiTools();
+        const first = c.aiPrompt().split('\n')[0];
+        foot.textContent = first + ' — ' + tools.length + ' tools: ' + tools.map(t => t.tool).join(', ');
+      });
+      mkBtn($('ai-btns'), 'Context', 'what the model sees: state + window summary', () => {
+        ensure();
+        const ctx = c.aiContext();
+        foot.textContent = 'state.type=' + ctx.state.type + ' · window: ' + String(ctx.window.text).split('\n')[0].slice(0, 90);
+      });
+      mkBtn($('ai-btns'), 'Demo ops', 'a canned {tool, args} batch through the validated dispatcher', () => {
+        ensure();
+        const d = c.data;
+        const p0 = d && d.length ? d[d.length - 1].close : 100;
+        const rs = c.applyAI([
+          { tool: 'set_indicators', args: { indicators: 'sma:20 ema:50' } },
+          { tool: 'set_overlays', args: { overlays: [{ type: 'level', price: p0, color: '#22d3ee', label: 'model level' }] } },
+          { tool: 'set_indicators', args: { indicators: 'nosuch:9' } },
+        ]);
+        const ok = rs.filter(r => r.ok).length;
+        foot.textContent = ok + '/' + rs.length + ' ops applied — the bad one reports {ok:false} instead of throwing';
       });
     }
   </script>

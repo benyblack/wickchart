@@ -1,0 +1,32 @@
+{
+  "name": "wickchart-ai",
+  "version": "0.1.0",
+  "description": "The wickchart chart as an LLM tool surface — a self-describing tool manifest, an agent system prompt, grounding context, and a validated op dispatcher. Bring your own model; the chart never touches the network.",
+  "type": "module",
+  "main": "ai.mjs",
+  "module": "ai.mjs",
+  "exports": {
+    ".": "./ai.mjs",
+    "./core": "./core.mjs"
+  },
+  "files": [
+    "ai.mjs",
+    "core.mjs",
+    "README.md"
+  ],
+  "keywords": [
+    "chart",
+    "charting",
+    "ai",
+    "llm",
+    "agent",
+    "tools",
+    "mcp",
+    "trading",
+    "wickchart"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "wickchart": ">=1.4.0"
+  }
+}
