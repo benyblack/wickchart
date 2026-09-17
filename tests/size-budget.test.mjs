@@ -30,7 +30,12 @@ import { gzipSync } from 'node:zlib';
 // targeting an entry back under 62 KB. Extracting them now would break
 // chart.narrate() / playStory() / playRange() / getPeers() and the sonify and
 // co-view attributes, which is a major-version conversation, not a budget one.
-const BUDGET_GZ = 74 * 1024; // 74 KB gzipped for the whole main entry
+//
+// 74→75 KB: the 1.7.1 deprecation warnings for the 0.x hab-* aliases
+// (warn-once helper + five alias sites; PR #75). Temporary by construction —
+// the 2.0 cut deletes every alias site these warnings ride on. Landed at
+// 74.17 KB.
+const BUDGET_GZ = 75 * 1024; // 75 KB gzipped for the whole main entry
 const FILES = ['src/core.js', 'src/wick-chart.js'];
 
 // the drawing toolkit is opt-in bytes; it earns its own, smaller budget

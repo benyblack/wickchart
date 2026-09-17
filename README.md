@@ -1260,26 +1260,48 @@ WICK_E2E_VISUAL=1 npm run test:e2e -- --update-snapshots
 - Incremental (O(1)) indicator updates for high-frequency streaming
 - Min/max downsampling and/or an offscreen hover layer if profiling ever demands
 
-## Migrating from 0.x (HabView)
+## Migrating from 1.x to 2.x
 
-1.0 renames the public surface to the WickChart brand. The 0.x names keep
-working as **deprecated aliases** (removed in 2.0), so upgrading is safe to
-do lazily:
+2.0 removes the deprecated 0.x `hab-*` aliases (they warn once per surface
+from **1.7.1**) and moves the six optional feature families out of the core
+entry into their own packages — the core drops back under ~65 KB gz. The
+full plan and delivery sequence: [ROADMAP-V2.md](./ROADMAP-V2.md).
 
-| 0.x (deprecated alias) | 1.0 canonical |
+**Aliases removed.** Renaming is mechanical; each warns in 1.7.1 already:
+
+| removed in 2.0 | use instead |
 |---|---|
 | `<hab-chart>` / `<hab-feed>` | `<wick-chart>` / `<wick-feed>` |
-| `hab:range`, `hab:select`, `hab:alert`, `hab:crosshair`, `hab:measure`, `hab:annotations` | `wick:*` of the same name (both fire during 1.x) |
-| `hab-feed:status` / `hab-feed:fallback` | `wick-feed:status` / `wick-feed:fallback` (both fire during 1.x) |
-| `--hab-bg`, `--hab-up`, … | `--wick-*` of the same name (`--wick-*` wins; `--hab-*` is the fallback) |
-| `HabChart` / `HabFeed` classes | `WickChart` / `WickFeed` (also as named exports) |
-| HabScript (the `expr:{…}` language) | WickScript — syntax unchanged |
-| `import … from 'wickchart/src/hab-chart.js'` | use the package entry points (`wickchart`, `wickchart/core`, `wickchart/feed`) — module files are renamed |
+| `hab:*` events (every chart event fired twice in 1.x) | `wick:*` of the same name |
+| `hab-feed:*` events | `wick-feed:*` |
+| `--hab-bg`, `--hab-up`, … (runtime **and** stylesheet fallbacks) | `--wick-*` of the same name |
 
-Two behavioral notes: custom indicators registered via
-`WickChart.registerIndicator()` are shared with the legacy `<hab-chart>`
-alias (one registry), and cross-tab co-view channels are now prefixed
-`wick-co-view:` (a 0.x tab and a 1.x tab won't pair — refresh both).
+Still on 0.x? Upgrade through 1.x first — the 1.x releases carry the
+aliases with warnings, so the rename can be done lazily there.
+
+**Features moved to packages.** Calls keep their shape: each
+`attachX(chart)` installs the familiar methods *on the instance*, so
+existing call sites survive with one added import line. Without the
+package, the core methods become warn-once stubs naming it:
+
+| 1.x (in core) | 2.0 package |
+|---|---|
+| `narrate()` · `walk()` / `stopWalk()` · `playRange()` · the `sonify` attribute · `captureScene()` / `getStory()` / `playStory()` / `stopStory()` | `wickchart-narrator` |
+| the `co-view` / `co-view-name` attributes · `getPeers()` | `wickchart-coview` |
+| `setScenario()` / `clearScenario()` · `setRiskPlan()` / `clearRiskPlan()` | `wickchart-scenario` |
+| `aiTools()` · `aiPrompt()` · `aiContext()` · `applyAI()` · `ask()` | `wickchart-ai` |
+
+```js
+import { attachNarrator } from 'wickchart-narrator';
+attachNarrator(chart);        // chart.narrate() / walk() / playStory() … work as before
+```
+
+**Unaffected:** `getDataWindow()` stays in core (a data API, not an LLM
+API), `getState()` / `setState()` serialize none of the moved features, and
+all four packages are already published and documented on the
+[plugins hub](https://benyblack.github.io/wickchart/plugins.html) — you can
+adopt them today, on 1.x (attaching simply shadows the core's identical
+methods).
 
 ## Releases
 

@@ -227,6 +227,22 @@ export const toMs = (t) =>
   t instanceof Date ? t.getTime() : t < MS_CUTOFF ? t * 1000 : t;
 
 /* ------------------------------------------------------------------ *
+ * 0.x alias deprecation (removed in 2.0)
+ * ------------------------------------------------------------------ */
+
+const warnedAliases = new Set();
+
+/** Warn once per distinct message about a deprecated 0.x `hab-*` alias.
+ *  Cheap by construction: a Set lookup on the (cold) alias paths. */
+export function warnDeprecatedAlias(message) {
+  if (warnedAliases.has(message)) return;
+  warnedAliases.add(message);
+  if (typeof console !== 'undefined' && console.warn) {
+    console.warn('wickchart: ' + message);
+  }
+}
+
+/* ------------------------------------------------------------------ *
  * Timezones
  * ------------------------------------------------------------------ */
 

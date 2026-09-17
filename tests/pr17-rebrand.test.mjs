@@ -63,6 +63,9 @@ test('source declares the new tags with the 0.x aliases', async () => {
 
 test('CSS variables resolve --wick-* first with --hab-* fallback', () => {
   const src = readFileSync(new URL('../src/wick-chart.js', import.meta.url), 'utf8');
-  assert.match(src, /getPropertyValue\('--wick-' \+ name\)\.trim\(\) \|\| cs\.getPropertyValue\('--hab-' \+ name\)/);
+  // wick wins outright; the hab read happens only as the fallback (and
+  // warns once — pr75). The static stylesheet keeps the same chain.
+  assert.match(src, /const v = cs\.getPropertyValue\('--wick-' \+ name\)\.trim\(\);\s*\r?\n\s*if \(v\) return v;/);
+  assert.match(src, /const h = cs\.getPropertyValue\('--hab-' \+ name\)\.trim\(\);\s*\r?\n\s*if \(h\) warnDeprecatedAlias/);
   assert.match(src, /var\(--wick-accent, var\(--hab-accent, #4c8dff\)\)/);
 });
