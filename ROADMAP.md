@@ -3,11 +3,12 @@
 North star: **"TradingView-class usefulness inside a zero-dependency custom element."**
 Every feature must survive the test: *one tag, zero build step, sane defaults*.
 
-Current state (v1.6): candles/line/area, volume, SMA/EMA/BB overlays, RSI/MACD
-panes + custom indicator registry, history backfill, gap dividers, positions
-& alerts with live P&L, visible-range stats, measure tool, shareable URL
-state, crosshair + OHLC legend, zoom/pan/pinch/keyboard, streaming, theming,
-PNG export, ~0.2 ms per frame at default zoom.
+Current state (v1.7): everything from 1.6, plus tick/volume/dollar bar
+aggregation on <wick-feed>, the wickchart-grid / wickchart-paper plugins
+(11 packages total), a worker compute path for 1M-bar histories, incremental
+indicator updates on streamed ticks, timezone-aware axes, and the branded
+report export — every open feature item across Tracks 1–5 shipped. See
+CHANGELOG.md.
 
 **Done (2026-09):** the five recommended PRs below — loadMore backfill + gap
 dividers, indicator registry + Bollinger + MACD, positions/orders + alerts,
@@ -92,7 +93,8 @@ is suggested priority.
 - ~~Web Worker compute path for 1M+ bars~~ ✅ shipped (PR #64) — `import 'wickchart/worker'` + `<wick-chart worker>`: built-in indicators compute in a module Worker, the dataset crossing once per bulk load as transferable Float64Arrays (~25 ms/M bars — object clones measured at ~1 s and disqualified); results cached per data epoch so streamed ticks stop recomputing; builtin-only (closures can't cross), 50k+ bars, silent sync fallback. Main entry +1.66 KB (budget 72→74). Rust/WASM stays a non-goal (canvas, not JS, is the floor).
 - Packaging: ~~JSDoc types → `.d.ts`, npm publish + CDN links~~ ✅, ~~`useWickChart`
   React hook + Vue/Svelte examples~~ ✅ shipped as `wickchart/react` (+ live
-  `demo/react.html`); semver/changelog policy pending. *S–M*
+  `demo/react.html`); ~~semver/changelog policy~~ ✅ CHANGELOG.md (policy +
+per-release entries; releases cut as tagged GitHub Releases). *S–M*
 - i18n for built-in labels; `preset="minimal|pro"` attribute. *S*
 
 ### Explicit non-goals
@@ -113,9 +115,9 @@ Canvas 2D floor is ~1 ms at our scale — revisit only with profiler evidence).
 4. ~~**Stats panel + measure tool**~~ ✅ shipped
 5. ~~**`getState()/setState()` + URL sharing**~~ ✅ shipped
 
-**Next up (suggested):** every open feature item across Tracks 1–4 has
-shipped, plus Track 5's worker compute path and incremental indicators.
-What remains is polish: semver/changelog policy, i18n + `preset=`
-(S items), and the dedicated spread pane (M) if demand appears.
+**Next up (suggested):** v1.7.0 is cut (see CHANGELOG.md). What remains
+is polish — i18n + `preset=` (S items) and the dedicated spread pane (M) if
+demand appears — and the 2.0 conversation: the plugin split (~9.6 KB out of
+the core entry) and the removal of the deprecated `hab-*` aliases.
 
 Each PR lands with the perf gate green (<1 ms default view, <8 ms max zoom-out).
