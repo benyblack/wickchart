@@ -220,6 +220,7 @@
         <li><a href="#agent">AI agent interface</a></li>
         <li><a href="#feeds">Feeds (&lt;wick-feed&gt;)</a></li>
         <li><a href="#worker">Worker compute path<span class="new-pill">NEW</span></a></li>
+        <li><a href="#report">Report export<span class="new-pill">NEW</span></a></li>
         <li><a href="#events">Events</a></li>
         <li><a href="#state">State &amp; shareable URLs</a></li>
         <li><a href="#theming">Theming</a></li>
@@ -787,6 +788,28 @@ chart.<span class="attr">applyAI</span>(ops); <span class="cmt">// validated dis
         <p><b>Incremental tick updates</b> come along automatically — with or without the worker: a streamed tick (appending a bar or replacing the forming one) patches every online-capable series by recomputing a bounded tail with the <em>same</em> batch definition — O(warm-up) ≈ 0.1 ms instead of a full-history recompute per indicator per tick — and writes only the last <code>period</code> values, so deeper history keeps its exact full-compute values. On worker-computed bases this means the forming bar's value stays fresh instead of waiting for the next bulk load. Cumulative indicators (<code>obv</code>, <code>vwap</code>) and the stateful <code>supertrend</code> are excluded and keep the full-recompute behavior.</p>
         <div class="note" style="border-left:3px solid var(--accent, #4c8dff);padding:8px 12px;margin:10px 0;font-size:13px">
           <b>1M-bar demo:</b> <a href="./demo/worker.html">demo/worker.html</a> loads a million synthetic bars in worker and sync mode side by side, with live main-thread freeze numbers.
+        </div>
+      </section>
+
+      <section id="report">
+        <h2>Report export <a class="anchor" href="#report">#</a></h2>
+        <p>The branded snapshot: chart + visible-range stats + watermark, composed into one shareable PNG — from public surfaces only (<code>exportPNG()</code>, <code>getVisibleRange()</code>, the chart's own <code>--wick-*</code> variables for theming), so it's an opt-in entry with zero core changes.</p>
+        <div class="codewrap"><pre class="code"><span class="tag">import</span> { exportReport, downloadReport } <span class="tag">from</span> <span class="str">'wickchart/report'</span>;
+
+<span class="tag">const</span> url  = <span class="tag">await</span> <span class="attr">exportReport</span>(chart);            <span class="cmt">// PNG data URL</span>
+<span class="tag">const</span> blob = <span class="tag">await</span> <span class="attr">exportReport</span>(chart, { <span class="attr">as</span>: <span class="str">'blob'</span> });
+<span class="tag">await</span> <span class="attr">downloadReport</span>(chart, <span class="str">'btc-1h.png'</span>, {
+  <span class="attr">source</span>: <span class="str">'binance: BTCUSDT'</span>,   <span class="cmt">// credited in the footer</span>
+  <span class="attr">title</span>: <span class="str">'BTC · 1h'</span>,            <span class="cmt">// default: the chart's label</span>
+  <span class="attr">theme</span>: <span class="str">'dark'</span> | <span class="str">'light'</span> | <span class="str">'auto'</span>, <span class="cmt">// auto reads the chart's CSS</span>
+  <span class="attr">scale</span>: <span class="num">2</span>,                      <span class="cmt">// 1..4 (default 2)</span>
+});</pre></div>
+        <p>The header band carries the title, the visible range and the brand; the chart keeps its full DPR resolution with a corner watermark; the stats band is a grid over the visible window (return, annualized vol, max drawdown, bars, up/down, average volume, high, low — the same <code>computeStats</code> the stats panel uses); the footer credits source and timestamp. The model (<code>reportModel(chart, opts)</code>) is exported too — plain data, unit-testable, if you want to render your own layout.</p>
+        <div class="demo-card">
+          <div class="demo-head"><span class="t">Playground</span><span class="spacer"></span><span id="rep-btns"></span></div>
+          <wick-feed for="ex-rep" demo="ETH" tf="1h" limit="300"></wick-feed>
+          <wick-chart id="ex-rep" label="ETH · 1h" indicators="sma:20 volume"></wick-chart>
+          <div class="foot" id="rep-foot">compose a report from the visible range — preview it, or download the PNG</div>
         </div>
       </section>
 
@@ -1679,6 +1702,46 @@ nav.<span class="attr">detach</span>();  <span class="cmt">// everything detache
             .map((r) => (r.ok ? '✓ ' + r.tool : '✗ ' + (r.tool || '?') + ' — ' + r.error))
             .join('\n');
       });
+    }
+
+    /* ---------- report export ---------- */
+    {
+      const c = $('ex-rep'), foot = $('rep-foot');
+      const { exportReport, downloadReport } = await import('./src/report.js');
+      let btn;
+      const paint = async (fn) => {
+        btn.textContent = 'Composing…';
+        try {
+          await fn();
+        } catch (e) {
+          foot.textContent = 'report failed: ' + e.message;
+        }
+        btn.textContent = 'Preview report';
+      };
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = 'Preview report';
+      btn.addEventListener('click', () => paint(async () => {
+        const url = await exportReport(c, { source: 'demo feed · synthetic' });
+        let img = document.getElementById('rep-img');
+        if (!img) {
+          img = document.createElement('img');
+          img.id = 'rep-img';
+          img.style.cssText = 'width:100%;border-radius:8px;border:1px solid var(--border,#94a3b824);margin-top:8px';
+          foot.parentNode.insertBefore(img, foot);
+        }
+        img.src = url;
+        foot.textContent = 'composed — right-click the image to copy, or download below';
+      }));
+      $('rep-btns').appendChild(btn);
+      const dl = document.createElement('button');
+      dl.type = 'button';
+      dl.textContent = 'Download PNG';
+      dl.addEventListener('click', () => paint(async () => {
+        await downloadReport(c, 'wickchart-report.png', { source: 'demo feed · synthetic' });
+        foot.textContent = 'downloaded — wickchart-report.png';
+      }));
+      $('rep-btns').appendChild(dl);
     }
 
     /* ---------- events log ---------- */

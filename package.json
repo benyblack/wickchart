@@ -26,6 +26,10 @@
     "./worker": {
       "types": "./types/worker.d.ts",
       "default": "./src/worker.js"
+    },
+    "./report": {
+      "types": "./types/report.d.ts",
+      "default": "./src/report.js"
     }
   },
   "files": [
@@ -50,7 +54,7 @@
     "test:e2e": "playwright test",
     "build:types": "node -e \"require('fs').rmSync('types', { recursive: true, force: true });\" && tsc -p tsconfig.json",
     "prepack": "npm run build:types",
-    "ci": "npm run build:types && npm test && node --check src/wick-chart.js && node --check src/wick-feed.js && node --check src/core.js && node --check src/react.js && node --check src/react-core.js && node --check src/worker.js && node --check src/worker-core.js && node --check demo/app.js && node --check plugins/draw/core.mjs && node --check plugins/draw/draw.mjs && node --check plugins/sessions/core.mjs && node --check plugins/sessions/sessions.mjs && node --check plugins/replay/replay.mjs && node --check plugins/compare/core.mjs && node --check plugins/compare/compare.mjs && node --check plugins/navigator/core.mjs && node --check plugins/navigator/navigator.mjs && node --check plugins/alerts-plus/alerts-plus.mjs && node --check plugins/layouts/layouts.mjs && node --check plugins/signals/core.mjs && node --check plugins/signals/signals.mjs && node --check plugins/tape/core.mjs && node --check plugins/tape/tape.mjs && node --check plugins/grid/core.mjs && node --check plugins/grid/grid.mjs && node --check plugins/paper/core.mjs && node --check plugins/paper/paper.mjs"
+    "ci": "npm run build:types && npm test && node --check src/wick-chart.js && node --check src/wick-feed.js && node --check src/core.js && node --check src/react.js && node --check src/react-core.js && node --check src/worker.js && node --check src/worker-core.js && node --check src/report.js && node --check demo/app.js && node --check plugins/draw/core.mjs && node --check plugins/draw/draw.mjs && node --check plugins/sessions/core.mjs && node --check plugins/sessions/sessions.mjs && node --check plugins/replay/replay.mjs && node --check plugins/compare/core.mjs && node --check plugins/compare/compare.mjs && node --check plugins/navigator/core.mjs && node --check plugins/navigator/navigator.mjs && node --check plugins/alerts-plus/alerts-plus.mjs && node --check plugins/layouts/layouts.mjs && node --check plugins/signals/core.mjs && node --check plugins/signals/signals.mjs && node --check plugins/tape/core.mjs && node --check plugins/tape/tape.mjs && node --check plugins/grid/core.mjs && node --check plugins/grid/grid.mjs && node --check plugins/paper/core.mjs && node --check plugins/paper/paper.mjs"
   },
   "keywords": [
     "chart",
