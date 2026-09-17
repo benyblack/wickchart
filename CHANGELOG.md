@@ -26,6 +26,57 @@ its own commit with the why.
 
 ---
 
+## 1.7.1 — 2026-09-17
+
+A deprecation release on the road to 2.0: every 0.x `hab-*` alias now warns
+— once per surface, naming its replacement — so 2.0 fails loudly with a
+readable message instead of mysteriously breaking at the major. The aliases
+themselves are unchanged until the cut.
+
+- `<hab-chart>` / `<hab-feed>` warn on creation → use the `wick-*` elements.
+- `hab:*` / `hab-feed:*` events warn on first dispatch (they keep firing)
+  → listen for `wick:*` / `wick-feed:*`.
+- A `--hab-*` CSS variable actually consumed by the runtime theme warns →
+  rename to `--wick-*`. (The static stylesheet fallbacks are pure CSS and
+  cannot warn; the full list lives in the README migration section.)
+
+The 2.0 plugin-split packages are published side by side on the plugins hub
+(`wickchart-narrator`, `-coview`, `-scenario`, `-ai`), and the docs and demo
+already treat them as the canonical home of the moved features — the draft
+2.0.0 notes below spell out the migration.
+
+## 2.0.0 (draft — in progress)
+
+Breaking changes per the plan ([ROADMAP-V2.md]). Draft notes; finalized at
+release.
+
+**Removed — the 0.x `hab-*` aliases** (deprecated since the 1.0 rebrand,
+warning since 1.7.1): the `<hab-chart>` / `<hab-feed>` elements, the
+`hab:*` and `hab-feed:*` event aliases (events fire once, as `wick:*` /
+`wick-feed:*`), and the `--hab-*` CSS-variable fallbacks (stylesheet and
+runtime — `--wick-*` only).
+
+**Moved to plugins — the six optional feature families** (~9.6 KB leaves
+the core entry, back under ~65 KB gz). Each `attachX(chart)` installs the
+familiar methods on the instance, so call sites keep their shape with one
+added import; without the package the methods become warn-once stubs
+naming it:
+
+| 1.x (in core) | 2.0 package |
+|---|---|
+| `narrate()` `walk()` `stopWalk()` `playRange()` `captureScene()` `getStory()` `playStory()` `stopStory()`, the `sonify` attribute | `wickchart-narrator` |
+| `co-view` / `co-view-name` attributes, `getPeers()` | `wickchart-coview` |
+| `setScenario()` / `clearScenario()` / `setRiskPlan()` / `clearRiskPlan()` | `wickchart-scenario` |
+| `aiTools()` `aiPrompt()` `aiContext()` `applyAI()` `ask()` | `wickchart-ai` |
+
+**Stays in core:** `getDataWindow()` — a data API, not an LLM API (the
+packages compose it). `getState()` / `setState()` are unaffected (none of
+the moved features serialize through them).
+
+**Migration guide:** README → "Migrating from 1.x to 2.x".
+
+---
+
 ## 1.7.0 — 2026-09-17
 
 The quant-grade release: information-based bars, million-bar performance
