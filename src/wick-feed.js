@@ -19,7 +19,6 @@
  *   streaming. Status is reflected in the `status` attribute and via
  *   `wick-feed:status` events (loading / live / polling / fallback / loaded /
  *   waiting / idle). `wick-feed:fallback` fires when a live source degrades.
- *   (The 0.x event names `hab-feed:*` still fire as deprecated aliases.)
  * ========================================================================== */
 
 import './wick-chart.js';
@@ -40,7 +39,7 @@ import {
   openBinanceTradeSocket,
   normalizeTrades,
 } from './feeds.js';
-import { warnDeprecatedAlias } from './core.js';
+
 
 const LIVE_TICK_MS = 650;
 
@@ -100,21 +99,19 @@ class WickFeed extends HTMLElementBase {
     this._fire('status', { status, ...detail });
   }
 
-  /** Dispatch `wick-feed:name` plus the deprecated `hab-feed:name` alias. */
+  /** Dispatch `wick-feed:name`. */
   _fire(name, detail) {
     this.dispatchEvent(new CustomEvent('wick-feed:' + name, { detail }));
-    this.dispatchEvent(new CustomEvent('hab-feed:' + name, { detail }));
   }
-
   /** Resolve the target chart (by `for` id, else the first chart element —
-   *  <wick-chart> or the deprecated <hab-chart>). */
+   *  <wick-chart>). */
   _resolveChart() {
     const id = this.getAttribute('for');
     if (id) {
       const el = document.getElementById(id);
       return el && (el.tagName === 'WICK-CHART' || el.tagName === 'HAB-CHART') ? el : null;
     }
-    return document.querySelector('wick-chart') || document.querySelector('hab-chart');
+    return document.querySelector('wick-chart');
   }
 
   _restart() {
@@ -456,33 +453,9 @@ class WickFeed extends HTMLElementBase {
   }
 }
 
-// 0.x alias events (`hab-feed:*`) keep firing alongside the canonical
-// `wick-feed:*` until 2.0 — but only listeners on the deprecated channel
-// warn (once), so canonical usage stays silent.
-if (WickFeed.prototype.addEventListener) {
-  const origAddEventListener = WickFeed.prototype.addEventListener;
-  WickFeed.prototype.addEventListener = function (type) {
-    if (typeof type === 'string' && type.startsWith('hab-feed:')) {
-      warnDeprecatedAlias('hab-feed:* events are removed in 2.0 — listen for wick-feed:*');
-    }
-    return origAddEventListener.apply(this, arguments);
-  };
-}
-
 if (typeof customElements !== 'undefined') {
   if (!customElements.get('wick-feed')) {
     customElements.define('wick-feed', WickFeed);
-  }
-  // 0.x alias: same element under its old tag name (deprecated, removed in 2.0)
-  if (!customElements.get('hab-feed')) {
-    /** @deprecated use <wick-feed> */
-    class HabFeed extends WickFeed {
-      constructor() {
-        super();
-        warnDeprecatedAlias('<hab-feed> is removed in 2.0 — use <wick-feed>');
-      }
-    }
-    customElements.define('hab-feed', HabFeed);
   }
 }
 

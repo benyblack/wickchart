@@ -45,7 +45,7 @@ The 2.0 plugin-split packages are published side by side on the plugins hub
 already treat them as the canonical home of the moved features — the draft
 2.0.0 notes below spell out the migration.
 
-## 2.0.0 (draft — in progress)
+## 2.0.0 — 2026-09-17
 
 Breaking changes per the plan ([ROADMAP-V2.md]). Draft notes; finalized at
 release.

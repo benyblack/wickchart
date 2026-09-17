@@ -31,11 +31,13 @@ import { gzipSync } from 'node:zlib';
 // chart.narrate() / playStory() / playRange() / getPeers() and the sonify and
 // co-view attributes, which is a major-version conversation, not a budget one.
 //
-// 74→75 KB: the 1.7.1 deprecation warnings for the 0.x hab-* aliases
-// (warn-once helper + five alias sites; PR #75). Temporary by construction —
-// the 2.0 cut deletes every alias site these warnings ride on. Landed at
-// 74.17 KB.
-const BUDGET_GZ = 75 * 1024; // 75 KB gzipped for the whole main entry
+// 75→66 KB: the 2.0 cut. The plugin split removed sonification, narrator,
+// story, co-view, scenario/risk and the AI helpers (~9.6 KB of feature
+// regions plus the drawing that moved into wickchart-coview/-scenario,
+// and every 0.x hab-* alias), landing the entry at 60.3 KB. Ceiling 66
+// per ROADMAP-V2.md — headroom for the additive 1.8/1.9 track (spread
+// pane, i18n, presets, downsampling) to inherit into 2.x.
+const BUDGET_GZ = 66 * 1024; // 66 KB gzipped for the whole main entry
 const FILES = ['src/core.js', 'src/wick-chart.js'];
 
 // the drawing toolkit is opt-in bytes; it earns its own, smaller budget
@@ -95,25 +97,21 @@ const PAPER_FILES = ['plugins/paper/core.mjs', 'plugins/paper/paper.mjs'];
 const NARRATOR_BUDGET_GZ = 9 * 1024;
 const NARRATOR_FILES = ['plugins/narrator/core.mjs', 'plugins/narrator/narrator.mjs'];
 
-// coview: cross-tab co-view (presence tracker + BroadcastChannel protocol +
-// the attach layer driving the element's band/ghost seams). Self-contained —
-// imports nothing from wickchart. Landed at 5.0 KB gz.
-const COVIEW_BUDGET_GZ = 6 * 1024;
+// coview: cross-tab co-view — presence tracker + BroadcastChannel protocol
+// + the attach layer + the band/ghost renderer (moved out of the core
+// entry at the 2.0 cut; the co-view attribute is plugin-owned since).
+// Landed at 6.0 KB gz.
+const COVIEW_BUDGET_GZ = 7 * 1024;
 const COVIEW_FILES = ['plugins/coview/core.mjs', 'plugins/coview/coview.mjs'];
 
-// scenario: planning setters (path/cone projection + R-multiple risk plan)
-// driving the element's state seams. Measures small on purpose during 1.x —
-// core.mjs re-exports the validators/cone math from wickchart/core (shared
-// with the AI window and narrator's scene validation); at the 2.0 cut those
-// functions move in here and the budget grows accordingly. Landed at 2.1 KB.
-const SCENARIO_BUDGET_GZ = 3 * 1024;
+// scenario: planning setters + the √h cone math (owned since the 2.0
+// cut) + the projection/risk renderer as a plugin layer. Landed at 4.8 KB.
+const SCENARIO_BUDGET_GZ = 5 * 1024;
 const SCENARIO_FILES = ['plugins/scenario/core.mjs', 'plugins/scenario/scenario.mjs'];
 
-// ai: the agent surface (tool manifest + prompt + validated dispatcher,
-// installed as five instance methods). Same 1.x story as scenario — the
-// manifest/prompt/dispatcher re-export from wickchart/core and move in at
-// the 2.0 cut. Landed at 2.2 KB gz.
-const AI_BUDGET_GZ = 3 * 1024;
+// ai: the agent surface — manifest + prompt + the validated dispatcher,
+// all owned since the 2.0 cut (they left the core entry). Landed at 4.8 KB.
+const AI_BUDGET_GZ = 5 * 1024;
 const AI_FILES = ['plugins/ai/core.mjs', 'plugins/ai/ai.mjs'];
 
 // The gzip budgets measure canonical content: CRLF is a checkout artifact

@@ -78,6 +78,19 @@ export class Narrator {
     this._actx = null;
     for (const m of INSTALLED) chart[m] = this[m].bind(this);
     chart._wickNarrator = this;
+    // since 2.0 the plugin hooks the chart's public surface itself: any
+    // user input interrupts narrated playback, and the crosshair drives
+    // sonification (the core call sites left with the feature)
+    if (typeof chart.addEventListener === 'function') {
+      this._onInput = () => this._stopPlayback();
+      for (const t of ['pointerdown', 'wheel', 'keydown', 'dblclick']) {
+        chart.addEventListener(t, this._onInput, { passive: true });
+      }
+      this._onCross = (e) => {
+        if (e.detail) this._maybeSonify(e.detail.index);
+      };
+      chart.addEventListener('wick:crosshair', this._onCross);
+    }
   }
 
   detach() {
@@ -85,6 +98,12 @@ export class Narrator {
     if (!c) return;
     this.stopWalk(true);
     this.stopStory(true);
+    if (this._onInput && typeof c.removeEventListener === 'function') {
+      for (const t of ['pointerdown', 'wheel', 'keydown', 'dblclick']) {
+        c.removeEventListener(t, this._onInput);
+      }
+      c.removeEventListener('wick:crosshair', this._onCross);
+    }
     for (const m of INSTALLED) {
       try {
         delete c[m];
@@ -161,6 +180,11 @@ export class Narrator {
     let ended = false;
     const tick = () => {
       if (ended) return;
+      if (!c._connected) {
+        // the chart left the DOM (core's disconnect hook went with 2.0)
+        this.stopWalk(true);
+        return;
+      }
       c._auto = false;
       c._view.rightIndex = cursor;
       c._clampView();
@@ -367,6 +391,7 @@ export class Narrator {
     const run = async () => {
       let idx = 0;
       while (token === this._storyToken) {
+        if (!c._connected) return; // chart left the DOM — stop the tour
         const sc = scenes[idx];
         this._fire('story', {
           phase: 'scene', index: idx, total: scenes.length,

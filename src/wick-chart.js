@@ -12,8 +12,9 @@
  * Zero dependencies. Canvas-rendered. Framework-agnostic (works in React,
  * Vue, plain HTML). Themeable with --wick-* CSS custom properties.
  *
- * The 0.x names (<hab-chart>, --hab-*, hab:* events) still work as
- * deprecated aliases — see the README migration notes.
+ * 2.0: the guided-playback (narrate/walk/sonify/story), co-view, scenario/
+ * risk-plan and AI-agent families live in their plugin packages; the core
+ * methods are warn-once stubs until a package attaches.
  *
  * MIT License.
  * ========================================================================== */
@@ -26,22 +27,19 @@ import {
   parseIndicators, normalizeIndicatorResult, BUILTIN_INDICATORS,
   positionPnl, positionPnlPct, checkAlertCross, computeStats, safeColor,
   SERIES_TYPES, calcHeikinAshi, buildColumns, computeVolumeProfile,
-  calcRSI, detectAnnotations, priceToFreq,
+  calcRSI, detectAnnotations,
   calcRealizedVol, volRegimeBands, percentileOfSorted, parseVolShading,
   windowSummary, normalizeOverlays, barIndexForTime, resolveOverlayColor,
   compileScript, predicateTrueSeries, scriptAlertStep,
-  AI_TOOLS, aiPromptText, applyChartOps,
-  calcVolCone, normalizeScenario, normalizeRiskPlan, PresenceTracker,
-  narrateWindow, brushStats,
-  easeInOutCubic, sceneList, warnDeprecatedAlias,
+  brushStats,
+  warnDeprecatedAlias,
 } from './core.js';
 
 /* ------------------------------------------------------------------ *
  * <wick-chart>
  * ------------------------------------------------------------------ */
 
-/** Indicator registry — module scope so registrations are shared by
- *  <wick-chart> and the deprecated <hab-chart> alias element. */
+/** Indicator registry — module scope, shared by every chart instance. */
 const REGISTRY = new Map(BUILTIN_INDICATORS);
 
 /** Bars from which the worker compute path engages — below it, sync wins
@@ -70,7 +68,7 @@ const HTMLElementBase = typeof HTMLElement !== 'undefined' ? HTMLElement : class
 
 class WickChart extends HTMLElementBase {
     static get observedAttributes() {
-      return ['theme', 'type', 'log', 'auto', 'indicators', 'precision', 'label', 'stats', 'profile', 'annotations', 'volshading', 'overlays', 'co-view', 'co-view-name', 'brush', 'sonify', 'alert-evaluate', 'timezone', 'vwap-anchor', 'worker'];
+      return ['theme', 'type', 'log', 'auto', 'indicators', 'precision', 'label', 'stats', 'profile', 'annotations', 'volshading', 'overlays', 'brush', 'alert-evaluate', 'timezone', 'vwap-anchor', 'worker'];
     }
 
     /**
@@ -97,7 +95,7 @@ class WickChart extends HTMLElementBase {
             container-type: inline-size;
           }
           :host(:focus-visible) {
-            outline: 2px solid var(--wick-accent, var(--hab-accent, #4c8dff));
+            outline: 2px solid var(--wick-accent, #4c8dff);
             outline-offset: -2px;
           }
           .wrap { position: absolute; inset: 0; overflow: hidden; }
@@ -127,26 +125,26 @@ class WickChart extends HTMLElementBase {
           }
           .legend .row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
           .legend .sym {
-            color: var(--wick-text-strong, var(--hab-text-strong, #e6edf3));
+            color: var(--wick-text-strong, #e6edf3);
             font-weight: 700;
             font-size: 13px;
             letter-spacing: 0.02em;
           }
           .legend .kv { display: inline-flex; gap: 5px; align-items: baseline; white-space: nowrap; }
-          .legend .k { color: var(--wick-text, var(--hab-text, #8b949e)); font-size: 11px; }
-          .legend .v { color: var(--wick-text-strong, var(--hab-text-strong, #e6edf3)); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+          .legend .k { color: var(--wick-text, #8b949e); font-size: 11px; }
+          .legend .v { color: var(--wick-text-strong, #e6edf3); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
           .legend .pct { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-          .legend .up { color: var(--wick-up, var(--hab-up, #16c784)); }
-          .legend .dn { color: var(--wick-down, var(--hab-down, #ea3943)); }
+          .legend .up { color: var(--wick-up, #16c784); }
+          .legend .dn { color: var(--wick-down, #ea3943); }
           .legend .ind {
             display: inline-flex; align-items: center; gap: 6px;
-            color: var(--wick-text, var(--hab-text, #8b949e)); font-size: 11.5px; white-space: nowrap;
+            color: var(--wick-text, #8b949e); font-size: 11.5px; white-space: nowrap;
           }
           .legend .ind i { width: 8px; height: 2.5px; border-radius: 2px; display: inline-block; }
           .legend .ind .v { font-size: 12px; }
           .legend .insight {
-            color: var(--wick-accent, var(--hab-accent, #4c8dff));
-            background: var(--wick-chip, var(--hab-chip, rgba(127, 137, 153, 0.12)));
+            color: var(--wick-accent, #4c8dff);
+            background: var(--wick-chip, rgba(127, 137, 153, 0.12));
             border-radius: 6px;
             padding: 1px 8px;
             font-size: 11.5px;
@@ -155,7 +153,7 @@ class WickChart extends HTMLElementBase {
           .nodata {
             position: absolute; inset: 0;
             display: flex; align-items: center; justify-content: center;
-            color: var(--wick-text, var(--hab-text, #8b949e));
+            color: var(--wick-text, #8b949e);
             font: 500 13px ${FONT_STACK};
             pointer-events: none;
           }
@@ -168,25 +166,25 @@ class WickChart extends HTMLElementBase {
           }
           .hud .pos {
             display: inline-flex; gap: 9px; align-items: baseline; white-space: nowrap;
-            background: var(--wick-chip, var(--hab-chip, rgba(127, 137, 153, 0.12)));
-            border: 1px solid var(--wick-border, var(--hab-border, rgba(148, 163, 184, 0.2)));
+            background: var(--wick-chip, rgba(127, 137, 153, 0.12));
+            border: 1px solid var(--wick-border, rgba(148, 163, 184, 0.2));
             border-radius: 7px;
             padding: 3px 9px;
           }
           .hud .statsrow {
             display: inline-flex; gap: 12px; white-space: nowrap;
-            background: var(--wick-chip, var(--hab-chip, rgba(127, 137, 153, 0.12)));
-            border: 1px solid var(--wick-border, var(--hab-border, rgba(148, 163, 184, 0.2)));
+            background: var(--wick-chip, rgba(127, 137, 153, 0.12));
+            border: 1px solid var(--wick-border, rgba(148, 163, 184, 0.2));
             border-radius: 7px;
             padding: 3px 10px;
-            color: var(--wick-text, var(--hab-text, #8b949e));
+            color: var(--wick-text, #8b949e);
             font-variant-numeric: tabular-nums;
           }
-          .hud .statsrow b { color: var(--wick-text-strong, var(--hab-text-strong, #e6edf3)); font-weight: 600; }
-          .hud .k { color: var(--wick-text, var(--hab-text, #8b949e)); font-weight: 500; }
-          .hud .v { color: var(--wick-text-strong, var(--hab-text-strong, #e6edf3)); font-variant-numeric: tabular-nums; }
-          .hud .up { color: var(--wick-up, var(--hab-up, #16c784)); }
-          .hud .dn { color: var(--wick-down, var(--hab-down, #ea3943)); }
+          .hud .statsrow b { color: var(--wick-text-strong, #e6edf3); font-weight: 600; }
+          .hud .k { color: var(--wick-text, #8b949e); font-weight: 500; }
+          .hud .v { color: var(--wick-text-strong, #e6edf3); font-variant-numeric: tabular-nums; }
+          .hud .up { color: var(--wick-up, #16c784); }
+          .hud .dn { color: var(--wick-down, #ea3943); }
 
           /* Narrow charts: the legend (top-left) and the HUD (top-right) are
              both pinned to the top, so on a phone they land on top of each
@@ -263,31 +261,21 @@ class WickChart extends HTMLElementBase {
       this._annoList = null;
       this._volshade = null;
 
-      // cross-tab co-view state
-      this._coviewName = null;
+      // co-view seams (2.0: driven by the wickchart-coview plugin — the
+      // layer/state contract its presence bands and ghost crosshair use,
+      // and disconnectedCallback cleans up)
       this._coviewCh = null;
-      this._coviewPeer = '';
-      this._coviewLast = 0;
       this._ghost = null;
       this._ghostTimer = 0;
-      // presence: peer viewports (who is looking where)
-      this._coviewLabel = null; // display name from the co-view-name attribute
-      this._presence = new PresenceTracker();
+      this._presence = null;
       this._coviewBeat = 0;
-      this._coviewViewLast = 0;
+      // scenario/risk seams (2.0: driven by the wickchart-scenario plugin;
+      // _rightMargin reserves future space from the active scenario)
+      this._scenario = null;
+      this._riskPlan = null;
 
-      // sonification state
-      this._sonify = false;
-      this._actx = null;
-      this._lastToneIdx = -1;
-      this._playToken = 0;
       this._measure = null; // { iA, pA, iB, pB, done }
       this._measuring = false;
-      // bar-walk narrator state
-      this._walkTimer = 0;
-      // story mode state: token cancels stale async runs
-      this._storyToken = 0;
-      this._story = null;
       // delta brush state: mode flag + current/finished selection
       this._brush = false;
       this._brushSel = null; // { i0, i1, stats } — the committed selection
@@ -339,11 +327,6 @@ class WickChart extends HTMLElementBase {
       // server-side overlays (zones & levels)
       this._overlays = [];
 
-      // scenario projection (ghost path + vol cone)
-      this._scenario = null;
-      // risk plan (R-multiple grid)
-      this._riskPlan = null;
-
       this._onResize = () => this._invalidate();
       this._onPointerDown = (e) => this._pointerDown(e);
       this._onPointerMove = (e) => this._pointerMove(e);
@@ -357,7 +340,6 @@ class WickChart extends HTMLElementBase {
       };
       this._onWheel = (e) => this._wheel(e);
       this._onDbl = () => {
-        this._stopPlayback();
         this.fit();
       };
       this._onKey = (e) => this._keydown(e);
@@ -414,18 +396,16 @@ class WickChart extends HTMLElementBase {
       if (document.fonts && document.fonts.ready) {
         document.fonts.ready.then(() => this._invalidate()).catch(() => {});
       }
-      if (this._coviewName) this._setupCoView();
       this._watchDpr();
       this._invalidate();
     }
 
     disconnectedCallback() {
       this._connected = false;
-      this.stopWalk(true);
-      this.stopStory(true);
       this._layerClaim = null;
+      // co-view seams (driven by the wickchart-coview plugin): close the
+      // room cleanly and stop its timers so a removed chart goes quiet
       if (this._coviewCh) {
-        this._coviewSend({ type: 'bye' });
         try {
           this._coviewCh.close();
         } catch (_) {}
@@ -433,12 +413,9 @@ class WickChart extends HTMLElementBase {
       }
       clearInterval(this._coviewBeat);
       this._coviewBeat = 0;
-      if (this._presence && this._presence.peers.size) {
-        const left = this._presence.list();
-        this._presence = new PresenceTracker();
-        this._fire('peers', { peers: [], joined: [], left });
-      }
       clearTimeout(this._ghostTimer);
+      this._ghost = null;
+      this._presence = null;
       if (this._ro) this._ro.disconnect();
       this._unwatchDpr();
       const cv = this._canvas;
@@ -526,23 +503,11 @@ class WickChart extends HTMLElementBase {
           this._overlays = ovs;
           break;
         }
-        case 'co-view':
-          this._coviewName = val || null;
-          this._setupCoView();
-          break;
-        case 'co-view-name':
-          // display name travels with every presence message; no re-render
-          this._coviewLabel = val || null;
-          break;
         case 'brush':
           this._brush = val != null && val !== 'false';
           this._brushSel = null;
           this._brushDrag = null;
           this._invalidate();
-          break;
-        case 'sonify':
-          this._sonify = val != null && val !== 'false';
-          this._lastToneIdx = -1;
           break;
         // Default evaluation mode for alerts added without one. Anything
         // other than "close" means live, so a typo cannot silently mute
@@ -607,8 +572,7 @@ class WickChart extends HTMLElementBase {
       });
     }
 
-    /** The tag this class registers as. (<hab-chart> is a deprecated alias
-     *  registered from the HabChart subclass, not this name.) */
+    /** The tag this class registers as. */
     static get elementName() {
       return 'wick-chart';
     }
@@ -1018,8 +982,7 @@ class WickChart extends HTMLElementBase {
      * WickScript predicate (`when`) on every streamed bar and fire on its
      * false→true edge — e.g. `when: 'crossup(rsi(close,14), 30)'` or
      * `when: 'volume > sma(volume,20) * 3'`. Scripted events carry the
-     * triggering close as `price` plus the `when` source (deprecated
-     * `hab:alert` alias still dispatched).
+     * triggering close as `price` plus the `when` source.
      * @param {{id?: string, price?: number, direction?: 'above'|'below'|'cross',
      *          when?: string, once?: boolean}} alert
      * @returns {string|null} the alert id (null when no valid price/when,
@@ -1123,157 +1086,21 @@ class WickChart extends HTMLElementBase {
       this._invalidate();
     }
 
-    /**
-     * Scenario projection into future space: a ghost path of future prices
-     * plus optional σ-bands (vol cone) from realized volatility.
-     *
-     *   chart.setScenario({ path: [64000, 65500, 68000], label: 'bull case' });
-     *   chart.setScenario({ horizon: 48, cone: true });   // cone-only
-     *
-     * The path is an array of prices (or {price} objects) for future bars
-     * 1..N; horizon defaults to the path length (1–500). `cone` (default
-     * true) draws ±levels·σ bands widening with √h from the current realized
-     * vol; `color` accepts up|down|accent or safe CSS colors. Setting a
-     * scenario reserves future space on the right; analysis data — excluded
-     * from getState/setState.
-     * @param {object} spec
-     * @returns {object|null} the normalized scenario, or null when invalid
-     */
-    setScenario(spec) {
-      this._scenario = normalizeScenario(spec);
-      this._invalidate();
-      return this._scenario;
-    }
-
-    clearScenario() {
-      this._scenario = null;
-      this._invalidate();
-    }
-
-    /** @returns {object|null} a copy of the active scenario */
+    /** @returns {object|null} a copy of the active scenario (set through the
+     *  `_scenario` seam by the wickchart-scenario plugin; reserves future
+     *  space via _rightMargin) */
     get scenario() {
       if (!this._scenario) return null;
       return { ...this._scenario, path: this._scenario.path.map((p) => ({ ...p })) };
     }
 
-    /**
-     * Risk plan: an R-multiple grid anchored at entry/stop. 1R = |entry −
-     * stop| (the risk unit); reward lines are drawn at kR beyond the entry
-     * with the risk/reward zones shaded, so sizing and take-profit choices
-     * read directly off the chart.
-     *
-     *   chart.setRiskPlan({ entry: 64500, stop: 63800, multiples: [1, 2, 3] });
-     *   chart.setRiskPlan({ entry: 64500, stop: 63800, targets: [65900, 67300] });
-     *
-     * Direction is derived (stop below entry ⇒ long). Targets convert to
-     * their R multiple; `multiples` win when both are given. Invalid specs
-     * clear the plan (replace semantics, like setScenario); excluded from
-     * getState/setState — it is app state, not chart state.
-     * @param {object} spec
-     * @returns {object|null} the normalized plan, or null when invalid
-     */
-    setRiskPlan(spec) {
-      this._riskPlan = normalizeRiskPlan(spec);
-      this._invalidate();
-      return this._riskPlan;
-    }
-
-    clearRiskPlan() {
-      if (this._riskPlan) {
-        this._riskPlan = null;
-        this._invalidate();
-      }
-    }
-
-    /** @returns {object|null} a copy of the active risk plan */
+    /** @returns {object|null} a copy of the active risk plan (set through
+     *  the `_riskPlan` seam by the wickchart-scenario plugin) */
     get riskPlan() {
       if (!this._riskPlan) return null;
       return { ...this._riskPlan, levels: this._riskPlan.levels.map((l) => ({ ...l })) };
     }
 
-    /** σ-cone for the active scenario, cached per data version. */
-    _scenarioConeCache() {
-      if (!this._scenario || !this._data.length) return null;
-      if (this._cache.v !== this._version) {
-        this._cache = { v: this._version, map: {} };
-      }
-      if (!this._cache.map.__scenario) {
-        const d = this._data;
-        const vol = calcRealizedVol(d.map((b) => b.close), 20);
-        let v = NaN;
-        for (let i = vol.length - 1; i >= 0; i--) {
-          if (Number.isFinite(vol[i])) { v = vol[i]; break; }
-        }
-        this._cache.map.__scenario = calcVolCone(
-          d[d.length - 1].close,
-          v,
-          this._scenario.horizon,
-          this._scenario.levels
-        );
-      }
-      return this._cache.map.__scenario;
-    }
-
-    /* ------------------------------------------------------------ *
-     * AI agent interface — the chart as a tool surface
-     * ------------------------------------------------------------ */
-
-    /** Tool manifest for LLM control — JSON-safe copy of AI_TOOLS. */
-    aiTools() {
-      return JSON.parse(JSON.stringify(AI_TOOLS));
-    }
-
-    /** System prompt for agent control — paste into any LLM alongside aiTools(). */
-    aiPrompt() {
-      return aiPromptText();
-    }
-
-    /** Grounding context for a model: current state + visible-window summary. */
-    aiContext() {
-      return { state: this.getState(), window: this.getDataWindow() };
-    }
-
-    /**
-     * Apply a list of {tool, args} ops (typically LLM output) through the
-     * validated dispatcher in core. Never throws — each op resolves
-     * {ok, tool, result} or {ok: false, tool, error} so an agent can
-     * self-correct.
-     * @param {any} ops
-     * @returns {Array<object>}
-     */
-    applyAI(ops) {
-      return applyChartOps(this, ops);
-    }
-
-    /**
-     * Ask an AI to operate the chart. Builds the payload {system,
-     * instruction, chart, tools}; with a `run` async function (your model
-     * call — the chart itself never touches the network), applies the
-     * returned ops and resolves {payload, ops, results}. Without `run`,
-     * returns the payload for manual wiring — send it anywhere, then call
-     * chart.applyAI(ops) with the model's answer.
-     *
-     *   const { results } = await chart.ask('add RSI and mark the demand zone', {
-     *     run: async (payload) => (await callMyLLM(payload)).ops,
-     *   });
-     *
-     * @param {string} instruction natural-language request
-     * @param {{run?: (payload: object) => Promise<any>}} [opts]
-     */
-    async ask(instruction, opts = {}) {
-      const payload = {
-        system: aiPromptText(),
-        instruction: String(instruction == null ? '' : instruction),
-        chart: this.aiContext(),
-        tools: this.aiTools(),
-      };
-      if (typeof opts.run !== 'function') {
-        return { payload, ops: null, results: null };
-      }
-      const ops = await opts.run(payload);
-      const results = this.applyAI(ops);
-      return { payload, ops, results };
-    }
 
     /** Check alerts against an incoming bar (prev close → new close).
      *  Scripted (`when`) alerts evaluate their predicate series, cached per
@@ -1491,14 +1318,7 @@ class WickChart extends HTMLElementBase {
       if (this._pal && this._palKey === this._theme) return this._pal;
       const base = THEMES[this._theme] || THEMES.dark;
       const cs = getComputedStyle(this);
-      // --wick-* is canonical; --hab-* still honored as the 0.x fallback
-      const get = (name, fallback) => {
-        const v = cs.getPropertyValue('--wick-' + name).trim();
-        if (v) return v;
-        const h = cs.getPropertyValue('--hab-' + name).trim();
-        if (h) warnDeprecatedAlias('--hab-* variables are removed in 2.0 — rename to --wick-*');
-        return h || fallback;
-      };
+      const get = (name, fallback) => cs.getPropertyValue('--wick-' + name).trim() || fallback;
       const pal = {};
       for (const k of Object.keys(base)) {
         if (k === 'overlay') {
@@ -2227,82 +2047,7 @@ class WickChart extends HTMLElementBase {
         }
       }
 
-      /* scenario projection: ghost path + σ-cone in future space (clipped to
-       * the main plot so out-of-range bands never bleed into the axis) */
-      if (this._scenario && d.length) {
-        const sc = this._scenario;
-        const col = resolveOverlayColor(sc.color, pal);
-        const baseIdx = d.length - 1;
-        const xAt = (h) => this._xFor(baseIdx + h);
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(0, main.y0, plotRight, main.h);
-        ctx.clip();
-        if (sc.cone) {
-          const cone = this._scenarioConeCache();
-          if (cone) {
-            for (let li = cone.levels.length - 1; li >= 0; li--) {
-              const b = cone.bands[cone.levels[li]];
-              ctx.globalAlpha = li === 0 ? 0.1 : 0.05;
-              ctx.fillStyle = col;
-              ctx.beginPath();
-              ctx.moveTo(xAt(0), yOf(b.up[0]));
-              for (let h = 1; h <= cone.horizon; h++) ctx.lineTo(xAt(h), yOf(b.up[h]));
-              for (let h = cone.horizon; h >= 0; h--) ctx.lineTo(xAt(h), yOf(b.down[h]));
-              ctx.closePath();
-              ctx.fill();
-            }
-            const inner = cone.bands[cone.levels[0]];
-            ctx.globalAlpha = 0.4;
-            ctx.strokeStyle = col;
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 4]);
-            for (const arr of [inner.up, inner.down]) {
-              ctx.beginPath();
-              ctx.moveTo(xAt(0), yOf(arr[0]));
-              for (let h = 1; h <= cone.horizon; h++) ctx.lineTo(xAt(h), yOf(arr[h]));
-              ctx.stroke();
-            }
-            ctx.setLineDash([]);
-          }
-        }
-        if (sc.path.length) {
-          ctx.globalAlpha = 0.9;
-          ctx.strokeStyle = col;
-          ctx.lineWidth = 1.5;
-          ctx.setLineDash([6, 4]);
-          ctx.beginPath();
-          ctx.moveTo(xAt(0), yOf(d[baseIdx].close));
-          for (const p of sc.path) ctx.lineTo(xAt(p.h), yOf(p.price));
-          ctx.stroke();
-          ctx.setLineDash([]);
-          ctx.fillStyle = col;
-          for (const p of sc.path) {
-            const y = yOf(p.price);
-            if (y >= main.y0 && y <= main.y1) {
-              ctx.beginPath();
-              ctx.arc(xAt(p.h), y, 2.5, 0, Math.PI * 2);
-              ctx.fill();
-            }
-          }
-          if (sc.label) {
-            const p = sc.path[sc.path.length - 1];
-            ctx.font = pillFont();
-            ctx.globalAlpha = 0.95;
-            ctx.fillStyle = col;
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(
-              sc.label,
-              Math.min(xAt(p.h) + 8, plotRight - 4),
-              clamp(yOf(p.price), main.y0 + 8, main.y1 - 8)
-            );
-          }
-        }
-        ctx.restore();
-      }
-
-      /* position zones (under series) */
+/* position zones (under series) */
       for (const pos of this._positions) {
         const yE = clamp(yOf(pos.entry), main.y0, main.y1);
         if (isNum(pos.target)) {
@@ -2317,68 +2062,7 @@ class WickChart extends HTMLElementBase {
         }
       }
 
-      /* risk plan: R-multiple grid — risk/reward shading + kR lines */
-      if (this._riskPlan && d.length) {
-        const rp = this._riskPlan;
-        const fP = numberFmt(this._prec(scale.rawHi || 1));
-        const yE = yOf(rp.entry);
-        const yS = yOf(rp.stop);
-        ctx.fillStyle = hexToRgba(pal.down, 0.06);
-        ctx.fillRect(0, Math.min(yE, yS), plotRight, Math.abs(yS - yE));
-        const yTop = yOf(rp.levels[rp.levels.length - 1].price);
-        ctx.fillStyle = hexToRgba(pal.up, 0.05);
-        ctx.fillRect(0, Math.min(yE, yTop), plotRight, Math.abs(yTop - yE));
-        const line = (p, col, dash) => {
-          const y = yOf(p);
-          if (y < main.y0 || y > main.y1) return null;
-          ctx.strokeStyle = col;
-          ctx.lineWidth = 1.5;
-          if (dash) ctx.setLineDash([5, 4]);
-          ctx.beginPath();
-          ctx.moveTo(0, Math.round(y) + 0.5);
-          ctx.lineTo(plotRight, Math.round(y) + 0.5);
-          ctx.stroke();
-          ctx.setLineDash([]);
-          ctx.lineWidth = 1;
-          return y;
-        };
-        const pills = [];
-        for (let i = rp.levels.length - 1; i >= 0; i--) {
-          const lv = rp.levels[i];
-          const y = line(lv.price, pal.up, true);
-          if (y != null) {
-            const kk = lv.k % 1 === 0 ? lv.k : +lv.k.toFixed(2);
-            pills.push({ y, text: `${kk}R ${fP.format(lv.price)}`, bg: pal.up });
-          }
-        }
-        const yStop = line(rp.stop, pal.down, false);
-        if (yStop != null) pills.push({ y: yStop, text: `STOP ${fP.format(rp.stop)}`, bg: pal.down });
-        const yEnt = line(rp.entry, pal.accent, false);
-        if (yEnt != null) {
-          pills.push({ y: yEnt, text: `${rp.direction === 'long' ? 'LONG' : 'SHORT'} ${fP.format(rp.entry)}`, bg: pal.accent });
-        }
-        // stack right-edge pills instead of letting close lines overlap
-        pills.sort((a, b) => a.y - b.y);
-        let lastY = -Infinity;
-        for (const p of pills) {
-          const y = Math.max(p.y, lastY + 20);
-          lastY = y;
-          ctx.font = pillFont();
-          const tw = ctx.measureText(p.text).width + 12;
-          this._pill(plotRight - tw - 8, y, p.text, p.bg, pal.pillText, 'left', tw);
-        }
-        if (rp.label) {
-          ctx.font = pillFont();
-          ctx.fillStyle = pal.accent;
-          ctx.globalAlpha = 0.9;
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'bottom';
-          ctx.fillText(rp.label, 8, clamp(yE, main.y0 + 14, main.y1) - 3);
-          ctx.globalAlpha = 1;
-        }
-      }
-
-      /* volume profile (behind the series) */
+/* volume profile (behind the series) */
       if (this._profile) {
         const pkey = `${i0}:${i1}:${this._version}`;
         if (this._profileKey !== pkey) {
@@ -3050,78 +2734,6 @@ class WickChart extends HTMLElementBase {
         );
       }
 
-      /* co-view presence: peer viewport bands along the top of the plot */
-      if (this._presence && this._presence.peers.size && d.length) {
-        const peers = this._presence.list().slice(0, 4);
-        ctx.save();
-        ctx.font = pillFont();
-        for (let row = 0; row < peers.length; row++) {
-          const p = peers[row];
-          if (!p.range) continue;
-          const cols = pal.overlay || [];
-          const col = cols[(row + 1) % Math.max(cols.length, 1)] || pal.accent;
-          const i0 = WickChart._indexForTime(this._data, p.range.from);
-          const i1 = WickChart._indexForTime(this._data, p.range.to);
-          const x0 = clamp(this._xFor(i0), 0, plotRight);
-          const x1 = clamp(this._xFor(i1), 0, plotRight);
-          const y = main.y0 + 2 + row * 5;
-          ctx.globalAlpha = 0.8;
-          ctx.fillStyle = col;
-          ctx.fillRect(x0, y, Math.max(x1 - x0, 3), 3);
-          if (x1 - x0 > 44) {
-            ctx.globalAlpha = 0.95;
-            ctx.textAlign = 'left';
-            ctx.textBaseline = 'top';
-            ctx.fillText(p.name || p.id, x0 + 3, y + 4);
-          }
-        }
-        ctx.restore();
-      }
-
-      /* co-view ghost crosshair (peer pointer from another tab/chart) */
-      if (this._ghost) {
-        const g = this._ghost;
-        const gx = this._xFor(g.index);
-        const gxVisible = gx >= 0 && gx <= plotRight;
-        ctx.save();
-        ctx.strokeStyle = pal.accent;
-        ctx.globalAlpha = 0.7;
-        ctx.setLineDash([2, 3]);
-        ctx.beginPath();
-        if (gxVisible) {
-          const cx = Math.round(gx) + 0.5;
-          ctx.moveTo(cx, 0);
-          ctx.lineTo(cx, plotBottom);
-        }
-        if (g.yFrac != null) {
-          const gy = Math.round(main.y0 + g.yFrac * main.h) + 0.5;
-          ctx.moveTo(0, gy);
-          ctx.lineTo(plotRight, gy);
-          if (gxVisible) {
-            ctx.fillStyle = pal.accent;
-            ctx.beginPath();
-            ctx.arc(gx, main.y0 + g.yFrac * main.h, 3, 0, Math.PI * 2);
-            ctx.fill();
-          }
-        }
-        ctx.stroke();
-        ctx.restore();
-        if (gxVisible && this._data[g.index]) {
-          const tLabel = fmtFull(this._zt(this._data[g.index].time));
-          ctx.font = pillFont();
-          const tw = ctx.measureText(tLabel).width + 12;
-          this._pill(
-            clamp(gx - tw / 2, 2, plotRight - tw - 2),
-            plotBottom + 2,
-            tLabel,
-            pal.accent,
-            pal.pillText,
-            'left',
-            tw
-          );
-        }
-      }
-
       /* measure tool overlay */
       if (this._measure && this._measure.pA != null && this._measure.pB != null) {
         const m = this._measure;
@@ -3605,7 +3217,6 @@ class WickChart extends HTMLElementBase {
       if (!this._ly || !this._data.length) return;
       const idx = clamp(Math.round(this._indexForX(pt.x)), 0, this._data.length - 1);
       this._hover = { index: idx, x: this._xFor(idx), y: pt.y };
-      this._maybeSonify(idx);
       this._emitCrosshair(this._hover);
       this._invalidate();
     }
@@ -3652,7 +3263,6 @@ class WickChart extends HTMLElementBase {
 
     _pointerDown(e) {
       if (e.button !== 0) return;
-      this._stopPlayback(); // any touch interrupts the story
       this._canvas.setPointerCapture(e.pointerId);
       const pt = this._localPoint(e);
       this._pointers.set(e.pointerId, pt);
@@ -3849,10 +3459,14 @@ class WickChart extends HTMLElementBase {
       return useLog ? Math.pow(10, t) : t;
     }
 
+    /** Dispatch a `wick:name` event on the element. */
+    _fire(name, detail) {
+      this.dispatchEvent(new CustomEvent('wick:' + name, { detail }));
+    }
+
     _wheel(e) {
       const ly = this._ly;
       if (!ly || !this._data.length) return;
-      this._stopPlayback();
       e.preventDefault();
       const pt = this._localPoint(e);
       const dx = e.deltaX;
@@ -3886,7 +3500,6 @@ class WickChart extends HTMLElementBase {
     _keydown(e) {
       const ly = this._ly;
       if (!ly || !this._data.length) return;
-      this._stopPlayback();
       if (e.key === 'Escape' && this._layerClaim) {
         const claim = this._layerClaim;
         this._layerClaim = null;
@@ -3907,7 +3520,6 @@ class WickChart extends HTMLElementBase {
         const cur = this._hover ? this._hover.index : d.length - 1;
         const idx = clamp(cur + (key === 'ArrowRight' ? step : -step), 0, d.length - 1);
         this._hover = { index: idx, x: this._xFor(idx), y: this._hover ? this._hover.y : ly.main.y1 * 0.5 };
-        this._maybeSonify(idx);
         this._emitCrosshair(this._hover);
         this._invalidate();
       } else if (key === 'Home') {
@@ -3945,102 +3557,8 @@ class WickChart extends HTMLElementBase {
     }
 
     /* ------------------------------------------------------------ *
-     * Sonification — the chart by ear (a11y)
+     * Crosshair events
      * ------------------------------------------------------------ */
-
-    /** Lazily-created shared AudioContext (enable within a user gesture). */
-    _audio() {
-      if (this._actx) return this._actx;
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return null;
-      try {
-        this._actx = new AC();
-      } catch (_) {
-        this._actx = null;
-      }
-      return this._actx;
-    }
-
-    /** Short sine blip; `when` schedules against AudioContext time. */
-    _tone(freq, dur = 0.14, when = 0) {
-      const ctx = this._audio();
-      if (!ctx) return;
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-      const t0 = when || ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, t0);
-      gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(t0);
-      osc.stop(t0 + dur + 0.03);
-    }
-
-    /** One tone for a bar's close, pitched by its position on the y-scale. */
-    _sonifyBar(i) {
-      if (!this._sonify || !this._data.length || !this._lastScale) return;
-      const d = this._renderBars();
-      const b = d[clamp(i, 0, d.length - 1)];
-      if (!b) return;
-      this._tone(priceToFreq(b.close, this._lastScale));
-    }
-
-    /** One tone per crosshair bar change (dedupes y-only moves). */
-    _maybeSonify(idx) {
-      if (!this._sonify) return;
-      if (this._lastToneIdx === idx) return;
-      this._lastToneIdx = idx;
-      this._sonifyBar(idx);
-    }
-
-    /**
-     * Play the visible range as a pitch sweep (~4s), riding the crosshair —
-     * the audible equivalent of running your eye along the price line.
-     */
-    playRange() {
-      if (!this._data.length || !this._ly) return;
-      const ctx = this._audio();
-      if (!ctx) return;
-      if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-      const d = this._renderBars();
-      const count = Math.max(2, Math.round(this._ly.plotRight / this._view.spacing));
-      const i0 = clamp(Math.floor(this._view.rightIndex - count) - 1, 0, d.length - 1);
-      const i1 = clamp(Math.ceil(this._view.rightIndex), 0, d.length - 1);
-      if (i1 - i0 < 2) return;
-      const N = Math.min(120, i1 - i0 + 1);
-      const stepMs = Math.min(70, Math.max(24, 4000 / N));
-      const t0 = ctx.currentTime + 0.05;
-      for (let k = 0; k < N; k++) {
-        const i = Math.round(i0 + ((i1 - i0) * k) / (N - 1));
-        const b = d[i];
-        if (!b) continue;
-        this._tone(priceToFreq(b.close, this._lastScale), stepMs / 1000 * 0.9, t0 + (k * stepMs) / 1000);
-      }
-      // ride the crosshair along the sweep for sighted users
-      this._playToken++;
-      const token = this._playToken;
-      let k = 0;
-      const timer = setInterval(() => {
-        if (token !== this._playToken || !this._connected) {
-          clearInterval(timer);
-          return;
-        }
-        if (k >= N) {
-          clearInterval(timer);
-          this._hover = null;
-          this._emitCrosshair(null);
-          this._invalidate();
-          return;
-        }
-        const i = Math.round(i0 + ((i1 - i0) * k) / (N - 1));
-        this._hover = { index: i, x: this._xFor(i), y: this._ly ? this._ly.main.h * 0.5 : 0 };
-        this._invalidate();
-        k++;
-      }, stepMs);
-    }
 
     _emitCrosshair(hover) {
       let detail = null;
@@ -4054,250 +3572,6 @@ class WickChart extends HTMLElementBase {
         };
       }
       this._fire('crosshair', detail);
-
-      // co-view: share the pointer with peer charts (leave events bypass throttle)
-      if (this._coviewCh) {
-        if (!detail) {
-          this._coviewSend({ type: 'cross', time: null, yFrac: null });
-        } else {
-          const now = performance.now();
-          if (now - this._coviewLast > 40) {
-            this._coviewLast = now;
-            const ly = this._ly;
-            this._coviewSend({
-              type: 'cross',
-              time: detail.bar.time,
-              yFrac: ly && isNum(detail.y) ? clamp(detail.y / ly.main.h, 0, 1) : null,
-            });
-          }
-        }
-      }
-    }
-
-    /* ------------------------------------------------------------ *
-     * Cross-tab co-view (BroadcastChannel)
-     * ------------------------------------------------------------ */
-
-    /** Join/leave the co-view channel named by the `co-view` attribute. */
-    _setupCoView() {
-      if (this._coviewCh) {
-        try {
-          this._coviewCh.close();
-        } catch (_) {}
-        this._coviewCh = null;
-      }
-      clearInterval(this._coviewBeat);
-      this._coviewBeat = 0;
-      clearTimeout(this._ghostTimer);
-      if (this._ghost) {
-        this._ghost = null;
-        this._invalidate();
-      }
-      if (this._presence && this._presence.peers.size) {
-        const left = this._presence.list();
-        this._presence = new PresenceTracker();
-        this._fire('peers', { peers: [], joined: [], left });
-      }
-      const name = this._coviewName;
-      if (!name || !this._connected || typeof BroadcastChannel === 'undefined') return;
-      if (!this._coviewPeer) this._coviewPeer = 'p' + Math.random().toString(36).slice(2, 8);
-      try {
-        const ch = new BroadcastChannel('wick-co-view:' + name);
-        ch.onmessage = (ev) => this._onCoMessage(ev.data);
-        this._coviewCh = ch;
-      } catch (_) {}
-      // presence: announce immediately, then heartbeat so idle peers stay
-      // warm (and stale ones sweep) without waiting for a pan/zoom
-      this._coviewSendView(true);
-      this._coviewBeat = setInterval(() => {
-        this._coviewSendView(true);
-        const left = this._presence.sweep();
-        if (left.length) {
-          this._fire('peers', { peers: this._presence.list(), joined: [], left });
-          this._invalidate();
-        }
-      }, 4000);
-    }
-
-    /** Broadcast our visible range for presence; throttled unless forced. */
-    _coviewSendView(force) {
-      if (!this._coviewCh) return;
-      const r = this.getVisibleRange();
-      if (!r) return;
-      const now = performance.now();
-      if (!force && now - this._coviewViewLast < 120) return;
-      this._coviewViewLast = now;
-      this._coviewSend({
-        type: 'view',
-        from: r.from,
-        to: r.to,
-        name: this._coviewLabel || null,
-      });
-    }
-
-    _coviewSend(msg) {
-      if (!this._coviewCh) return;
-      try {
-        this._coviewCh.postMessage({ v: 1, peer: this._coviewPeer, ...msg });
-      } catch (_) {}
-    }
-
-    _onCoMessage(m) {
-      if (!m || m.v !== 1 || m.peer === this._coviewPeer) return;
-      if (m.type === 'view') {
-        const joined = this._presence.track(m.peer, {
-          range: { from: m.from, to: m.to },
-          name: m.name,
-        });
-        this._invalidate();
-        if (joined) {
-          const p = this._presence.peers.get(m.peer);
-          this._fire('peers', {
-            peers: this._presence.list(),
-            joined: [p ? { ...p, range: p.range && { ...p.range } } : { id: m.peer }],
-            left: [],
-          });
-        }
-        return;
-      }
-      if (m.type === 'bye') {
-        const left = this._presence.drop(m.peer);
-        if (left) this._fire('peers', { peers: this._presence.list(), joined: [], left: [left] });
-        this._invalidate();
-        return;
-      }
-      if (m.type !== 'cross') return;
-      if (m.time == null) {
-        if (this._ghost) {
-          this._ghost = null;
-          clearTimeout(this._ghostTimer);
-          this._invalidate();
-        }
-        return;
-      }
-      if (!isNum(m.time) || !this._data.length) return;
-      this._ghost = {
-        index: WickChart._indexForTime(this._data, m.time),
-        yFrac: isNum(m.yFrac) ? clamp(m.yFrac, 0, 1) : null,
-        at: Date.now(),
-      };
-      clearTimeout(this._ghostTimer);
-      this._ghostTimer = setTimeout(() => {
-        this._ghost = null;
-        this._invalidate();
-      }, 2500);
-      this._invalidate();
-    }
-
-    /** Dispatch `wick:name` (canonical) plus the deprecated `hab:name` alias,
-     *  so 0.x listeners keep working until 2.0. */
-    _fire(name, detail) {
-      this.dispatchEvent(new CustomEvent('wick:' + name, { detail }));
-      this.dispatchEvent(new CustomEvent('hab:' + name, { detail }));
-    }
-
-    /**
-     * Live co-view peers: who else is in the room and the time window each
-     * one is looking at — [{ id, name, range: {from, to}, at }], oldest
-     * sighting first. Peers fade out ~12 s after their last sighting.
-     * @returns {object[]}
-     */
-    getPeers() {
-      return this._presence ? this._presence.list() : [];
-    }
-
-    /**
-     * Narrated timeline for a window (default: the visible range) — pivot
-     * highs/lows, volume spikes, gaps, RSI divergences plus derived legs
-     * ("+12.4% over 38 bars"), sorted by index. Pure data, perfect for
-     * caption UIs or the walk player.
-     *   chart.narrate();                        // visible range
-     *   chart.narrate({ from, to });            // times in ms (s accepted)
-     * @param {{from?: number, to?: number}} [range]
-     * @returns {{i: number, time: number, type: string, side: string, note: string,
-     *            legPct?: number, legBars?: number}[]}
-     */
-    narrate(range) {
-      const d = this._data;
-      if (!d.length) return [];
-      let i0 = 0;
-      let i1 = d.length - 1;
-      if (range && isNum(range.from) && isNum(range.to)) {
-        i0 = WickChart._indexForTime(d, WickChart._timeToMs(range.from));
-        i1 = WickChart._indexForTime(d, WickChart._timeToMs(range.to));
-        if (i0 > i1) [i0, i1] = [i1, i0];
-      }
-      return narrateWindow(d, i0, i1);
-    }
-
-    /**
-     * Walk the chart through history like a story: the viewport slides
-     * from `from` to `to` while `wick:walk` events announce every step and
-     * the narrator's events (spikes, gaps, pivots, legs) as they're crossed.
-     * Any user interaction — pointer, wheel, keys, double-click — stops it.
-     *   chart.walk({ from: 0, to: 500, speed: 120, step: 10 });
-     *   chart.addEventListener('wick:walk', (e) => showCaption(e.detail));
-     *   // detail: { phase: 'step'|'end'|'stop', index, events: [...], from, to }
-     * @param {{from?: number, to?: number, speed?: number, step?: number}} [opts]
-     *        from/to are bar indices (default: last ~500 bars → the end)
-     * @returns {boolean} true when the walk started
-     */
-    walk(opts = {}) {
-      this.stopWalk(true);
-      const d = this._data;
-      if (!d.length || !this._connected) return false;
-      const to = clamp(Math.round(+opts.to || d.length - 1), 0, d.length - 1);
-      const from = clamp(Math.round(opts.from != null ? +opts.from : Math.max(0, to - 500)), 0, to);
-      const span = to - from + 1;
-      // window width: the current viewport, but never more than ~⅓ of the
-      // span (a fully zoomed-out chart would otherwise start at `to`)
-      const widthBars = clamp(
-        Math.min(
-          this._ly ? Math.round(this._ly.plotRight / this._view.spacing) : 120,
-          Math.max(10, Math.ceil(span / 3))
-        ),
-        10,
-        span
-      );
-      const events = narrateWindow(d, from, to, { pivot: 8 });
-      const speed = clamp(Math.round(+opts.speed || 120), 16, 2000);
-      const step = clamp(Math.round(+opts.step || Math.max(1, Math.round(widthBars / 12))), 1, 500);
-      let cursor = Math.min(from + widthBars - 1, to);
-      let ev = 0;
-      let ended = false;
-      const tick = () => {
-        if (ended) return;
-        this._auto = false;
-        this._view.rightIndex = cursor;
-        this._clampView();
-        this._invalidate();
-        this._emitRange();
-        const hits = [];
-        while (ev < events.length && events[ev].i <= cursor) hits.push(events[ev++]);
-        this._fire('walk', { phase: 'step', index: cursor, events: hits, from, to });
-        if (cursor >= to) {
-          ended = true;
-          clearInterval(this._walkTimer);
-          this._walkTimer = 0;
-          this._fire('walk', { phase: 'end', index: cursor, events: [], from, to });
-        } else {
-          cursor = Math.min(cursor + step, to);
-        }
-      };
-      this._walkTimer = setInterval(tick, speed);
-      tick(); // first step lands immediately
-      return true;
-    }
-
-    /**
-     * Stop the running walk (if any). Fires a final `wick:walk`
-     * { phase: 'stop' } unless called internally.
-     */
-    stopWalk(silent) {
-      if (!this._walkTimer) return;
-      clearInterval(this._walkTimer);
-      this._walkTimer = 0;
-      if (!silent) this._fire('walk', { phase: 'stop' });
     }
 
     /**
@@ -4335,188 +3609,46 @@ class WickChart extends HTMLElementBase {
       return { i0, i1, stats: { ...stats, from: { ...stats.from }, to: { ...stats.to } } };
     }
 
-    /**
-     * Capture the current chart state as a story scene: view, series type,
-     * indicators, overlays, scenario and risk plan, plus a title/note.
-     * Build guided tours by capturing several and playing them back.
-     *   const story = [
-     *     chart.captureScene('Overview', 'The full picture'),
-     *     { title: 'The breakout', range: { from, to }, indicators: 'sma:20' },
-     *   ];
-     *   chart.playStory(story);
-     * @param {string} [title]
-     * @param {string} [note]
-     * @returns {object} scene (plain data — snapshot of the moment)
-     */
-    captureScene(title, note) {
-      const scene = {
-        title: title != null ? String(title).slice(0, 60) : '',
-        note: note != null ? String(note).slice(0, 200) : '',
-        range: this.getVisibleRange() || undefined,
-        type: this.getAttribute('type') || 'candles',
-        indicators: this.getAttribute('indicators') || null,
-      };
-      const ovs = this.overlays;
-      if (ovs.length) scene.overlays = ovs;
-      const sc = this.scenario;
-      if (sc) scene.scenario = sc;
-      const rp = this.riskPlan;
-      if (rp) scene.riskPlan = rp;
-      return scene;
-    }
-
-    /** @returns {object[]|null} a copy of the last played story */
-    getStory() {
-      return this._story ? this._story.map((s) => ({ ...s })) : null;
-    }
-
-    /**
-     * Play a story: each scene applies its state (type / indicators /
-     * overlays / scenario / risk plan — set or clear), the camera eases
-     * to its range, then holds for its dwell. `wick:story` events narrate:
-     *   { phase: 'scene' | 'end' | 'stop', index, total, scene, title, note }
-     * Any user interaction — pointer, wheel, keys, double-click — stops it.
-     * @param {object[]} story scenes (invalid entries dropped, max 20)
-     * @param {{dwell?: number, panMs?: number, loop?: boolean}} [opts]
-     *        panMs clamps 100–5000 (default 900); loop replays forever
-     * @returns {boolean} true when playback started
-     */
-    playStory(story, opts = {}) {
-      this.stopStory(true);
-      const scenes = sceneList(story);
-      if (!scenes.length || !this._data.length || !this._connected) return false;
-      const token = ++this._storyToken;
-      this._story = scenes;
-      const panMs = clamp(Math.round(+opts.panMs || 900), 100, 5000);
-      const loop = opts.loop === true;
-      const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-      const run = async () => {
-        let idx = 0;
-        while (token === this._storyToken) {
-          const sc = scenes[idx];
-          this._fire('story', {
-            phase: 'scene', index: idx, total: scenes.length,
-            scene: sc, title: sc.title, note: sc.note,
-          });
-          this._applyScene(sc);
-          const target = this._sceneTarget(sc);
-          if (target) await this._storyTween(target, panMs, token);
-          if (token !== this._storyToken) return;
-          await wait(sc.dwell);
-          if (token !== this._storyToken) return;
-          idx++;
-          if (idx >= scenes.length) {
-            if (loop) idx = 0;
-            else {
-              this._fire('story', { phase: 'end', index: idx - 1, total: scenes.length });
-              return;
-            }
-          }
-        }
-      };
-      run();
-      return true;
-    }
-
-    /**
-     * Stop story playback (if running). Fires a final `wick:story`
-     * { phase: 'stop' } unless called internally.
-     */
-    stopStory(silent) {
-      if (!this._storyToken) return;
-      this._storyToken = 0;
-      if (!silent) this._fire('story', { phase: 'stop' });
-    }
-
-    /** Apply a scene's state (only the fields it carries). */
-    _applyScene(sc) {
-      if (sc.type) this.setAttribute('type', sc.type);
-      if (sc.indicators != null) this.setAttribute('indicators', sc.indicators);
-      if (sc.overlays) this.setOverlays(sc.overlays);
-      if (sc.scenario === 'clear') this.clearScenario();
-      else if (sc.scenario) this.setScenario(sc.scenario);
-      if (sc.riskPlan === 'clear') this.clearRiskPlan();
-      else if (sc.riskPlan) this.setRiskPlan(sc.riskPlan);
-    }
-
-    /** Map a scene's time range to bar indices (null when not applicable). */
-    _sceneTarget(sc) {
-      if (!sc.range || !this._data.length) return null;
-      let i0 = WickChart._indexForTime(this._data, WickChart._timeToMs(sc.range.from));
-      let i1 = WickChart._indexForTime(this._data, WickChart._timeToMs(sc.range.to));
-      if (i0 > i1) [i0, i1] = [i1, i0];
-      return i1 - i0 >= 2 ? { i0, i1 } : null;
-    }
-
-    /** Ease the viewport to { i0, i1 } over `ms`; resolves early if the
-     *  token changes (superseded or stopped). rAF when available. */
-    _storyTween(target, ms, token) {
-      const ly = this._ly;
-      const d = this._data;
-      if (!ly || !d.length) return Promise.resolve();
-      const sp1 = clamp(ly.plotRight / (target.i1 - target.i0), this._minSpacing(), WickChart._MAX_SP);
-      const from = { right: this._view.rightIndex, sp: this._view.spacing };
-      const to = { right: target.i1, sp: sp1 };
-      const t0 = performance.now();
-      this._auto = false;
-      return new Promise((resolve) => {
-        const step = () => {
-          if (token !== this._storyToken) return resolve();
-          const e = easeInOutCubic(Math.min(1, (performance.now() - t0) / ms));
-          this._view.rightIndex = from.right + (to.right - from.right) * e;
-          this._view.spacing = from.sp + (to.sp - from.sp) * e;
-          this._clampView();
-          this._invalidate();
-          this._emitRange();
-          if (e >= 1) resolve();
-          else if (typeof requestAnimationFrame === 'function') requestAnimationFrame(step);
-          else setTimeout(step, 16);
-        };
-        step();
-      });
-    }
-
-    /** Interrupt narrated playback (walk / story) on user input. */
-    _stopPlayback() {
-      if (this._walkTimer) this.stopWalk();
-      if (this._storyToken) this.stopStory();
-    }
-
     _emitRange() {
       const r = this.getVisibleRange();
       if (!r) return;
       this._fire('range', r);
-      if (this._coviewCh) this._coviewSendView();
     }
   }
 
-// 0.x alias events (`hab:*`) keep firing alongside the canonical `wick:*`
-// until 2.0 — but only listeners on the deprecated channel warn (once),
-// so canonical usage stays silent.
-if (WickChart.prototype.addEventListener) {
-  const origAddEventListener = WickChart.prototype.addEventListener;
-  WickChart.prototype.addEventListener = function (type) {
-    if (typeof type === 'string' && type.startsWith('hab:')) {
-      warnDeprecatedAlias('hab:* events are removed in 2.0 — listen for wick:*');
-    }
-    return origAddEventListener.apply(this, arguments);
+/* 2.0: the guided-playback, planning, co-view and agent families moved to
+ * their packages. Until one attaches, the familiar methods warn once and
+ * no-op (deleted in 3.0); attaching installs the real thing as an own
+ * property that shadows these. */
+for (const [name, pkg] of [
+  ['narrate', 'wickchart-narrator'],
+  ['walk', 'wickchart-narrator'],
+  ['stopWalk', 'wickchart-narrator'],
+  ['playRange', 'wickchart-narrator'],
+  ['captureScene', 'wickchart-narrator'],
+  ['getStory', 'wickchart-narrator'],
+  ['playStory', 'wickchart-narrator'],
+  ['stopStory', 'wickchart-narrator'],
+  ['getPeers', 'wickchart-coview'],
+  ['setScenario', 'wickchart-scenario'],
+  ['clearScenario', 'wickchart-scenario'],
+  ['setRiskPlan', 'wickchart-scenario'],
+  ['clearRiskPlan', 'wickchart-scenario'],
+  ['aiTools', 'wickchart-ai'],
+  ['aiPrompt', 'wickchart-ai'],
+  ['aiContext', 'wickchart-ai'],
+  ['applyAI', 'wickchart-ai'],
+  ['ask', 'wickchart-ai'],
+]) {
+  WickChart.prototype[name] = function () {
+    warnDeprecatedAlias(`${name}() moved to the ${pkg} package in 2.0`);
+    return undefined;
   };
 }
 
 if (typeof customElements !== 'undefined') {
   if (!customElements.get('wick-chart')) {
     customElements.define('wick-chart', WickChart);
-  }
-  // 0.x alias: same element under its old tag name (deprecated, removed in 2.0)
-  if (!customElements.get('hab-chart')) {
-    /** @deprecated use <wick-chart> */
-    class HabChart extends WickChart {
-      constructor() {
-        super();
-        warnDeprecatedAlias('<hab-chart> is removed in 2.0 — use <wick-chart>');
-      }
-    }
-    customElements.define('hab-chart', HabChart);
   }
 }
 

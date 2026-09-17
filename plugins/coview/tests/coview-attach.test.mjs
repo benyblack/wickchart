@@ -51,12 +51,12 @@ function channelHub() {
 
 function coviewChart(hub, { room = 'room', label = null, beatMs = 60000, ttl } = {}) {
   const events = [];
+  const attrs = { 'co-view': room };
+  if (label != null) attrs['co-view-name'] = label;
   const c = {
-    events,
+    events, attrs,
     invalidations: 0,
     _connected: true,
-    _coviewName: room,
-    _coviewLabel: label,
     _data: bars(50),
     _ghost: null,
     _ghostTimer: 0,
@@ -64,6 +64,7 @@ function coviewChart(hub, { room = 'room', label = null, beatMs = 60000, ttl } =
     _coviewBeat: 0,
     _presence: null,
     _range: { from: T(10), to: T(40) },
+    getAttribute(k) { return attrs[k] ?? null; },
     getVisibleRange() { return { ...this._range }; },
     _invalidate() { this.invalidations++; },
     dispatchEvent(e) { events.push({ name: e.type, detail: e.detail }); return true; },
@@ -117,10 +118,13 @@ test('joining a room announces the viewport immediately (v1 envelope)', () => {
   stopBeats(c);
 });
 
-test('additive phase: the core element still carries its own machinery', () => {
-  for (const m of ['getPeers', '_setupCoView', '_coviewSend', '_coviewSendView', '_onCoMessage']) {
-    assert.equal(typeof WickChart.prototype[m], 'function', `core prototype still has ${m}`);
-  }
+test('additive phase replaced: the core element carries a stub, the plugin is the real thing', () => {
+  // since the 2.0 cut, getPeers on the prototype is a warn-once stub; the
+  // plugin's installed own property shadows it
+  const c = coviewChart(channelHub());
+  assert.equal(typeof WickChart.prototype.getPeers, 'function', 'the stub exists');
+  assert.notEqual(WickChart.prototype.getPeers, c.getPeers, 'not the installed one');
+  stopBeats(c);
 });
 
 /* ------------------------- pairing ------------------------- */
@@ -205,7 +209,7 @@ test('attribute change re-joins silently; disconnect + reconnect mirror the elem
   const c = coviewChart(hub, { room: 'one' });
   const first = c._coviewCh;
   // what core's attributeChangedCallback does for a `co-view` change:
-  c._coviewName = 'two';
+  c.attrs['co-view'] = 'two';
   c._setupCoView();
   assert.equal(first.closed, true, 'old channel closed');
   assert.ok(!first.sent.some((m) => m.type === 'bye'), 'a re-join does not say goodbye (matches core)');
@@ -256,7 +260,7 @@ test('detach: goodbye, close, shadows removed, clean slate', async () => {
     assert.ok(!a.hasOwnProperty(m), `${m} removed`);
   }
   assert.equal(a.getPeers, undefined, 'duck chart has no fallback getPeers');
-  assert.deepEqual(a._presence.list(), [], 'clean tracker left on the seam');
+  assert.equal(a._presence, null, 'presence seam cleared clean');
   await tick();
   assert.equal(b.getPeers().length, 0, 'peer saw the goodbye');
   assert.ok(b.events.some((e) => e.name === 'wick:peers' && e.detail.left[0]?.name === 'A'), 'left event on the peer');

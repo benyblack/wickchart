@@ -227,13 +227,13 @@ export const toMs = (t) =>
   t instanceof Date ? t.getTime() : t < MS_CUTOFF ? t * 1000 : t;
 
 /* ------------------------------------------------------------------ *
- * 0.x alias deprecation (removed in 2.0)
+ * Moved-method stub warnings (used by wick-chart.js; deleted in 3.0)
  * ------------------------------------------------------------------ */
 
 const warnedAliases = new Set();
 
-/** Warn once per distinct message about a deprecated 0.x `hab-*` alias.
- *  Cheap by construction: a Set lookup on the (cold) alias paths. */
+/** Warn once per distinct message (used by the 2.0 moved-method stubs in
+ *  wick-chart.js — deleted with them in 3.0). */
 export function warnDeprecatedAlias(message) {
   if (warnedAliases.has(message)) return;
   warnedAliases.add(message);
@@ -358,8 +358,7 @@ export const fmtFull = (t) => {
 };
 
 /* ------------------------------------------------------------------ *
- * Themes (every key overridable via --wick-* CSS custom properties;
- * the 0.x --hab-* names still work as fallbacks)
+ * Themes (every key overridable via --wick-* CSS custom properties)
  * ------------------------------------------------------------------ */
 
 export const THEMES = {
@@ -1020,28 +1019,6 @@ export function detectAnnotations(bars, i0, i1, rsi, opts = {}) {
   }
 
   return out.length > 80 ? out.slice(0, 80) : out;
-}
-
-/**
- * Map a price to a sonification frequency over the visible scale.
- * Logarithmic scales map through log-space; result clamped to [lo, hi] Hz.
- * @param {number} price
- * @param {{min: number, max: number, useLog?: boolean}} scale
- * @param {number} [freqLo=180]
- * @param {number} [freqHi=880]
- * @returns {number} frequency in Hz
- */
-export function priceToFreq(price, scale, freqLo = 180, freqHi = 880) {
-  if (!scale || !(scale.max > scale.min)) return (freqLo + freqHi) / 2;
-  let t;
-  if (scale.useLog) {
-    // scale.min/max are already log10-transformed in this mode
-    t = (Math.log10(Math.max(price, 1e-12)) - scale.min) / (scale.max - scale.min || 1);
-  } else {
-    t = (price - scale.min) / (scale.max - scale.min);
-  }
-  t = t < 0 ? 0 : t > 1 ? 1 : t;
-  return freqLo + t * (freqHi - freqLo);
 }
 
 /**
@@ -1818,7 +1795,7 @@ export function evalScript(compiled, bars) {
 /**
  * Build an indicator definition from a WickScript expression — used inline by
  * `indicators="expr:{…}"` / `pexpr:{…}"`, or register it under a name:
- * `HabChart.registerIndicator('myspread', scriptIndicator('close - ema(close,21)'))`.
+ * `WickChart.registerIndicator('myspread', scriptIndicator('close - ema(close,21)'))`.
  * @param {string} src
  * @param {{pane?: boolean}} [opts]
  * @returns {IndicatorDef}
@@ -2205,45 +2182,6 @@ export function resolveOverlayColor(raw, pal) {
  * ------------------------------------------------------------------ */
 
 /**
- * σ-cone projection from realized per-bar volatility: price bands widening
- * with √h (GBM-style, exp(±z·σ·√h)) over `horizon` future bars.
- * @param {number} lastClose anchor price (bar 0)
- * @param {number} volPerBar per-bar stddev of log returns (from calcRealizedVol)
- * @param {number} horizon future bars (clamped 1–500, default 48)
- * @param {number[]} [levels] σ multipliers, e.g. [1, 2] (each clamped to 0–5)
- * @returns {{horizon: number, levels: number[], bands: Record<string, {up: number[], down: number[]}>}}
- *          bands[z].up/.down are arrays indexed by h = 0…horizon ([0] === lastClose)
- */
-export function calcVolCone(lastClose, volPerBar, horizon, levels) {
-  const zs = (Array.isArray(levels) && levels.length ? levels : [1, 2])
-    .map((z) => +z)
-    .filter((z) => Number.isFinite(z) && z > 0 && z <= 5)
-    .sort((a, b) => a - b);
-  const lv = zs.length ? zs : [1];
-  const H = Math.max(1, Math.min(500, Math.round(+horizon || 48)));
-  const c = +lastClose;
-  const v = +volPerBar;
-  const bands = {};
-  const flat = !Number.isFinite(c) || c <= 0 || !Number.isFinite(v) || v < 0;
-  for (const z of lv) {
-    const up = new Array(H + 1);
-    const down = new Array(H + 1);
-    for (let h = 0; h <= H; h++) {
-      if (flat) {
-        up[h] = c || 0;
-        down[h] = c || 0;
-      } else {
-        const k = Math.exp(z * v * Math.sqrt(h));
-        up[h] = c * k;
-        down[h] = c / k;
-      }
-    }
-    bands[z] = { up, down };
-  }
-  return { horizon: H, levels: lv, bands };
-}
-
-/**
  * Validate a scenario spec: a ghost path of future prices (bars or API data)
  * plus optional cone settings. Invalid entries are dropped, never thrown.
  *
@@ -2357,61 +2295,6 @@ export function normalizeRiskPlan(spec) {
 }
 
 /* ------------------------------------------------------------------ *
- * Bar-walk narrator — a timeline of what happened
- * ------------------------------------------------------------------ */
-
-/**
- * Turn a bar window into an ordered story: the annotation events (pivot
- * highs/lows, volume spikes, gaps, RSI divergences) plus derived **legs** —
- * the move between consecutive opposite pivots ("+12.4% over 38 bars").
- * The timeline drives the bar-walk player and any caption UI.
- *
- * @param {Bar[]} bars full dataset
- * @param {number} i0 first index of the window
- * @param {number} i1 last index of the window
- * @param {{pivot?: number, volMult?: number, gapMult?: number, rsiPeriod?: number}} [opts]
- *        pivot window defaults to 8 (denser than the annotations overlay's 20)
- * @returns {{i: number, time: number, type: string, side: string, note: string,
- *            legPct?: number, legBars?: number}[]} sorted by index, capped at 60
- */
-export function narrateWindow(bars, i0, i1, opts = {}) {
-  if (!bars.length || i0 < 0 || i1 < i0 || i1 >= bars.length) return [];
-  const rsi = calcRSI(bars.map((b) => b.close), Math.min(50, Math.max(2, +opts.rsiPeriod || 14)));
-  const ann = detectAnnotations(bars, i0, i1, rsi, {
-    pivot: opts.pivot ?? 8,
-    volMult: opts.volMult,
-    gapMult: opts.gapMult,
-  });
-  // legs: the move between consecutive opposite pivots, stamped at the
-  // ending pivot so a walk player can speak it as it arrives
-  const pivots = ann
-    .filter((a) => a.type === 'pivothigh' || a.type === 'pivotlow')
-    .sort((a, b) => a.i - b.i);
-  const legs = [];
-  for (let k = 1; k < pivots.length; k++) {
-    const a = pivots[k - 1];
-    const b = pivots[k];
-    if (a.type === b.type) continue;
-    const pa = a.type === 'pivothigh' ? bars[a.i].high : bars[a.i].low;
-    const pb = b.type === 'pivothigh' ? bars[b.i].high : bars[b.i].low;
-    if (!(pa > 0) || !Number.isFinite(pb)) continue;
-    const pct = ((pb - pa) / pa) * 100;
-    legs.push({
-      type: 'leg',
-      side: pct >= 0 ? 'high' : 'low',
-      i: b.i,
-      note: `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}% over ${b.i - a.i} bars`,
-      legPct: Math.round(pct * 100) / 100,
-      legBars: b.i - a.i,
-    });
-  }
-  return [...ann, ...legs]
-    .sort((a, b) => a.i - b.i)
-    .slice(0, 60)
-    .map((e) => ({ ...e, time: bars[e.i].time }));
-}
-
-/* ------------------------------------------------------------------ *
  * Delta brush — selection statistics
  * ------------------------------------------------------------------ */
 
@@ -2454,165 +2337,6 @@ export function brushStats(bars, i0, i1) {
     low,
     volume: vol,
   };
-}
-
-/* ------------------------------------------------------------------ *
- * Story mode — guided tours of chart state
- * ------------------------------------------------------------------ */
-
-/** Smoothest cheap easing for viewport pans: slow in, slow out. */
-export function easeInOutCubic(t) {
-  const x = clamp(+t || 0, 0, 1);
-  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
-}
-
-/**
- * Validate one story scene. Every field is optional except that a scene
- * must be an object; omitted fields simply don't change that aspect of
- * the chart when played. `scenario`/`riskPlan` use a 'clear' sentinel for
- * explicit "remove it" (null input means clear too when the KEY is present).
- *
- *   { title: 'The breakout', note: 'What happened…',
- *     range: { from, to },          // times (s or ms) — the camera pans there
- *     indicators: 'sma:20 rsi:14',  // optional indicator string
- *     type: 'candles',              // optional series type
- *     overlays: [...],              // optional zones/levels (normalizeOverlays)
- *     scenario: {...} | null,       // set / clear a scenario
- *     riskPlan: {...} | null,       // set / clear a risk plan
- *     dwell: 2200 }                 // ms to hold after the pan (500–30000)
- *
- * @returns {object|null} normalized scene, or null for non-objects
- */
-export function normalizeScene(scene) {
-  if (!scene || typeof scene !== 'object') return null;
-  const out = {
-    title: scene.title != null ? String(scene.title).slice(0, 60) : '',
-    note: scene.note != null ? String(scene.note).slice(0, 200) : '',
-    dwell: clamp(Math.round(+scene.dwell || 2200), 500, 30000),
-  };
-  if (scene.range && Number.isFinite(+scene.range.from) && Number.isFinite(+scene.range.to)) {
-    out.range = { from: +scene.range.from, to: +scene.range.to };
-  }
-  if (scene.indicators != null) {
-    const s = String(scene.indicators).trim();
-    if (s) out.indicators = s.slice(0, 200);
-  }
-  if (scene.type != null && SERIES_TYPES.includes(scene.type)) out.type = scene.type;
-  if (scene.overlays != null) {
-    const ovs = normalizeOverlays(scene.overlays);
-    if (ovs.length) out.overlays = ovs;
-  }
-  if ('scenario' in scene) {
-    if (scene.scenario == null) out.scenario = 'clear';
-    else {
-      const sc = normalizeScenario(scene.scenario);
-      if (sc) out.scenario = sc;
-    }
-  }
-  if ('riskPlan' in scene) {
-    if (scene.riskPlan == null) out.riskPlan = 'clear';
-    else {
-      const rp = normalizeRiskPlan(scene.riskPlan);
-      if (rp) out.riskPlan = rp;
-    }
-  }
-  return out;
-}
-
-/**
- * Validate a whole story: normalize each scene, drop junk, cap at 20.
- * @returns {object[]} possibly empty
- */
-export function sceneList(story) {
-  if (!Array.isArray(story)) return [];
-  const out = [];
-  for (const s of story) {
-    const n = normalizeScene(s);
-    if (n) out.push(n);
-    if (out.length >= 20) break;
-  }
-  return out;
-}
-
-/* ------------------------------------------------------------------ *
- * Co-view presence — peer viewport tracking with TTL expiry
- * ------------------------------------------------------------------ */
-
-/**
- * Tracks other charts viewing the same room: last-sighting timestamps per
- * peer plus the viewport each one is looking at. Pure bookkeeping — the
- * transport (BroadcastChannel, WebSocket, …) lives in the component/app.
- *
- * Peers expire `ttl` ms after their last sighting, so a closed tab fades
- * out of the room without an explicit goodbye.
- */
-export class PresenceTracker {
-  /** @param {number} [ttl=12000] ms a peer survives without a sighting */
-  constructor(ttl = 12000) {
-    this.ttl = Math.max(1000, +ttl || 12000);
-    /** @type {Map<string, {id: string, name: string|null, range: {from:number,to:number}|null, at: number}>} */
-    this.peers = new Map();
-  }
-
-  /**
-   * Record a sighting. `patch.range` ({from,to} times) is validated and
-   * normalized; a sighting without a range keeps the previous one.
-   * @returns {boolean} true when this sighting is a join (new peer)
-   */
-  track(id, patch = {}, now = Date.now()) {
-    if (!id || typeof id !== 'string') return false;
-    const existing = this.peers.get(id);
-    if (existing) {
-      if (patch && patch.range) {
-        const f = +patch.range.from;
-        const t = +patch.range.to;
-        if (Number.isFinite(f) && Number.isFinite(t)) {
-          existing.range = { from: Math.min(f, t), to: Math.max(f, t) };
-        }
-      }
-      if (patch && patch.name != null) existing.name = String(patch.name).slice(0, 24) || null;
-      existing.at = now;
-      return false;
-    }
-    const f = patch && patch.range ? +patch.range.from : NaN;
-    const t = patch && patch.range ? +patch.range.to : NaN;
-    this.peers.set(id, {
-      id,
-      name: patch && patch.name != null ? (String(patch.name).slice(0, 24) || null) : null,
-      range: Number.isFinite(f) && Number.isFinite(t)
-        ? { from: Math.min(f, t), to: Math.max(f, t) }
-        : null,
-      at: now,
-    });
-    return true;
-  }
-
-  /** @returns {object|null} the removed peer entry, or null when unknown */
-  drop(id) {
-    const p = this.peers.get(id);
-    this.peers.delete(id);
-    return p || null;
-  }
-
-  /** Expire peers not seen within the ttl.
-   *  @returns {object[]} the peer entries that left */
-  sweep(now = Date.now()) {
-    const left = [];
-    for (const [id, p] of this.peers) {
-      if (now - p.at > this.ttl) {
-        this.peers.delete(id);
-        left.push(p);
-      }
-    }
-    return left;
-  }
-
-  /** @returns {{id: string, name: string|null, range: object|null, at: number}[]} copies, oldest sighting first */
-  list() {
-    return [...this.peers.values()]
-      .sort((a, b) => a.at - b.at)
-      .map((p) => ({ ...p, range: p.range ? { ...p.range } : null }));
-  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -2864,165 +2588,3 @@ export function decodeStateQuery(str) {
   return state;
 }
 
-/* ------------------------------------------------------------------ *
- * AI agent interface — the chart as a tool surface
- * ------------------------------------------------------------------ */
-
-/**
- * Tool manifest for LLM/agent control of a chart. Tools map 1:1 onto the
- * public element API; every op through applyChartOps is validated before it
- * touches the chart (LLM output is untrusted input).
- */
-export const AI_TOOLS = [
-  {
-    tool: 'get_data_window',
-    description:
-      'Read the visible chart window: OHLC stats, trend (slope + fit), volatility percentile, indicator snapshots, detected patterns. Returns structured fields plus a markdown summary.',
-    args: {},
-  },
-  {
-    tool: 'set_indicators',
-    description:
-      'Replace the indicators. Tokens: sma:20 ema:50 bb:20 vwap supertrend:10/3 donchian:20 keltner:20 rsi:14 macd:12/26/9 stoch:14/3 atr:14 obv cci:20 wr:14 volume, @hexcolor suffixes, or WickScript expressions like expr:{close - sma(close,20)} / pexpr:{rsi(close,14)}. Empty string clears all.',
-    args: { indicators: 'string — space/comma-separated tokens' },
-  },
-  {
-    tool: 'set_overlays',
-    description:
-      'Draw zones & levels behind the candles (support/resistance, supply/demand). Zone: {type:"zone", from?, to?, priceFrom, priceTo, color?, alpha?, label?} — omit `to` (or pass null) to extend into future space past the last bar. Level: {type:"level", price, color?, dash?, label?}. Invalid entries are dropped.',
-    args: { overlays: 'array of overlay objects' },
-  },
-  { tool: 'clear_overlays', description: 'Remove all overlays.', args: {} },
-  {
-    tool: 'add_alert',
-    description:
-      'Price alert {price, direction:"above"|"below"|"cross"} or scripted predicate {when:"<WickScript>"} — e.g. when:"crossup(rsi(close,14), 30)" or when:"volume > sma(volume,20) * 3". Fires wick:alert.',
-    args: {},
-  },
-  {
-    tool: 'set_view',
-    description: 'Set the visible time range (unix seconds or ms).',
-    args: { from: 'timestamp', to: 'timestamp' },
-  },
-  { tool: 'reset_view', description: 'Fit all loaded data.', args: {} },
-  {
-    tool: 'set_type',
-    description: 'Change the series type.',
-    args: { type: '"candles" | "line" | "area" | "bars" | "hollow" | "heikin"' },
-  },
-  {
-    tool: 'set_volshading',
-    description: 'Volatility-regime background shading (calm/normal/hot percentiles).',
-    args: { enabled: 'boolean', low: 'percentile 0–98 (default 30)', high: 'percentile (default 70)' },
-  },
-];
-
-/**
- * Compact system prompt for agent control: paste into any LLM alongside the
- * tool manifest. The model answers with a JSON array of {tool, args} ops.
- * @returns {string}
- */
-export function aiPromptText() {
-  const lines = AI_TOOLS.map(
-    (t) => `- ${t.tool}${Object.keys(t.args).length ? '(' + Object.keys(t.args).join(', ') + ')' : '()'}: ${t.description}`
-  );
-  return [
-    'You are controlling a WickChart financial charting element through tool calls.',
-    'Reply with ONLY a JSON array of operations to apply, each {"tool": name, "args": {...}}.',
-    'Use get_data_window first when you need to see the chart before deciding.',
-    'Available tools:',
-    ...lines,
-  ].join('\n');
-}
-
-const AI_CHART_TYPES = SERIES_TYPES;
-
-/**
- * Validate + apply a list of {tool, args} ops (typically LLM output) to a
- * chart-like target. Ops are whitelisted and their args validated — an op
- * never throws; it returns {ok: false, error} instead so the agent can
- * self-correct. Target contract: getDataWindow(), setAttribute(k, v),
- * setOverlays(list), clearOverlays(), addAlert(a), setVisibleRange(r),
- * fit(), and (static) _registry() for indicator name checks.
- * @param {object} target chart element (or test double)
- * @param {any} ops
- * @returns {Array<{ok: boolean, tool?: string, result?: any, error?: string}>}
- */
-export function applyChartOps(target, ops) {
-  if (!target) return [{ ok: false, error: 'no target' }];
-  if (!Array.isArray(ops)) return [{ ok: false, error: 'ops must be an array of {tool, args} objects' }];
-  return ops.map((op) => {
-    if (!op || typeof op !== 'object' || Array.isArray(op)) {
-      return { ok: false, error: 'each op must be an object: {tool, args}' };
-    }
-    const tool = String(op.tool || '');
-    const args = op.args && typeof op.args === 'object' && !Array.isArray(op.args) ? op.args : {};
-    const fail = (error) => ({ ok: false, tool, error });
-    try {
-      switch (tool) {
-        case 'get_data_window':
-          return { ok: true, tool, result: target.getDataWindow() };
-        case 'set_indicators': {
-          if (typeof args.indicators !== 'string') return fail('args.indicators must be a string');
-          const reg = target.constructor && target.constructor._registry ? target.constructor._registry() : null;
-          const parsed = parseIndicators(args.indicators, reg);
-          if (parsed.unknown.length) {
-            return fail(`unknown indicators: ${parsed.unknown.join(', ')}`);
-          }
-          target.setAttribute('indicators', args.indicators);
-          return { ok: true, tool, result: { applied: args.indicators || '(cleared)' } };
-        }
-        case 'set_overlays': {
-          if (!Array.isArray(args.overlays)) return fail('args.overlays must be an array');
-          const norm = normalizeOverlays(args.overlays);
-          if (!norm.length) return fail('no valid overlays in args.overlays');
-          const ids = target.setOverlays(args.overlays);
-          return { ok: true, tool, result: { applied: ids.length, dropped: args.overlays.length - ids.length } };
-        }
-        case 'clear_overlays':
-          target.clearOverlays();
-          return { ok: true, tool, result: { cleared: true } };
-        case 'add_alert': {
-          if (!isNum(args.price) && typeof args.when !== 'string') {
-            return fail('args needs either price (number) or when (WickScript string)');
-          }
-          const id = target.addAlert(args);
-          return id ? { ok: true, tool, result: { id } } : fail('invalid alert (bad predicate?)');
-        }
-        case 'set_view': {
-          const r = {};
-          if (isNum(args.from)) r.from = normMs(args.from);
-          if (isNum(args.to)) r.to = normMs(args.to);
-          if (!('from' in r) && !('to' in r)) return fail('args needs from and/or to timestamps');
-          target.setVisibleRange(r);
-          return { ok: true, tool, result: r };
-        }
-        case 'reset_view':
-          target.fit();
-          return { ok: true, tool, result: { reset: true } };
-        case 'set_type': {
-          if (!AI_CHART_TYPES.includes(args.type)) {
-            return fail(`args.type must be one of ${AI_CHART_TYPES.join(' | ')}`);
-          }
-          target.setAttribute('type', args.type);
-          return { ok: true, tool, result: { type: args.type } };
-        }
-        case 'set_volshading': {
-          if (args.enabled === false) {
-            target.setAttribute('volshading', 'false');
-            return { ok: true, tool, result: { enabled: false } };
-          }
-          const p = parseVolShading(
-            isNum(args.low) && isNum(args.high) ? `${args.low}/${args.high}` : ''
-          );
-          target.setAttribute('volshading', `${p.p1}/${p.p2}`);
-          return { ok: true, tool, result: { enabled: true, low: p.p1, high: p.p2 } };
-        }
-        default:
-          return fail(`unknown tool "${tool}"`);
-      }
-    } catch (err) {
-      return fail(err && err.message ? err.message : String(err));
-    }
-  });
-}

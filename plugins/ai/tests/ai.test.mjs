@@ -158,10 +158,11 @@ test('multi-op batches return per-op results in order', () => {
 
 /* ------------------------- the 1.x seam ------------------------- */
 
-test('during 1.x the agent surface is the very same functions core ships', () => {
-  assert.equal(AI_TOOLS, wccore.AI_TOOLS);
-  assert.equal(aiPromptText, wccore.aiPromptText);
-  assert.equal(applyChartOps, wccore.applyChartOps);
+test('the agent surface is owned here — it left the core entry at the cut', () => {
+  assert.equal(wccore.AI_TOOLS, undefined);
+  assert.equal(wccore.aiPromptText, undefined);
+  assert.equal(wccore.applyChartOps, undefined);
+  assert.equal(typeof AI_TOOLS !== 'undefined' && AI_TOOLS.length >= 9, true, 'the manifest lives in this package');
 });
 
 test('core.mjs is the documented re-export seam, not a drifted copy', () => {
