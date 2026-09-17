@@ -1281,6 +1281,12 @@ Two behavioral notes: custom indicators registered via
 alias (one registry), and cross-tab co-view channels are now prefixed
 `wick-co-view:` (a 0.x tab and a 1.x tab won't pair — refresh both).
 
+## Releases
+
+Versioned per [semver](./CHANGELOG.md#how-this-project-versions); every
+release is a tagged GitHub Release with the changelog — see
+**[CHANGELOG.md](./CHANGELOG.md)**.
+
 ## License
 
 MIT
