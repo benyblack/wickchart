@@ -209,15 +209,10 @@
         <li><a href="#wickscript">WickScript expressions</a></li>
         <li><a href="#volshading">Volatility shading</a></li>
         <li><a href="#overlays">Server-side overlays<span class="new-pill">NEW</span></a></li>
-        <li><a href="#scenario">Scenario mode<span class="new-pill">NEW</span></a></li>
-        <li><a href="#riskplan">Risk planner<span class="new-pill">NEW</span></a></li>
         <li><a href="#trading">Positions &amp; alerts</a></li>
         <li><a href="#analysis">Stats, profile &amp; annotations</a></li>
-        <li><a href="#narrate">Bar-walk narrator<span class="new-pill">NEW</span></a></li>
         <li><a href="#brush">Delta brush<span class="new-pill">NEW</span></a></li>
-        <li><a href="#story">Story mode<span class="new-pill">NEW</span></a></li>
         <li><a href="#ai">AI-ready data window</a></li>
-        <li><a href="#agent">AI agent interface</a></li>
         <li><a href="#feeds">Feeds (&lt;wick-feed&gt;)</a></li>
         <li><a href="#worker">Worker compute path<span class="new-pill">NEW</span></a></li>
         <li><a href="#report">Report export<span class="new-pill">NEW</span></a></li>
@@ -225,7 +220,6 @@
         <li><a href="#state">State &amp; shareable URLs</a></li>
         <li><a href="#theming">Theming</a></li>
         <li><a href="#interactions">Interactions &amp; a11y</a></li>
-        <li><a href="#coview">Co-view presence<span class="new-pill">NEW</span></a></li>
         <li><a href="#react">React, Vue, Svelte</a></li>
         <li><a href="#plugins">Plugin layers<span class="new-pill">NEW</span></a></li>
         <li><a href="#drawing">Drawings<span class="new-pill">NEW</span></a></li>
@@ -500,59 +494,6 @@ chart.<span class="attr">overlays</span>;               <span class="cmt">// get
         </div>
       </section>
 
-      <section id="scenario">
-        <h2>Scenario mode <a class="anchor" href="#scenario">#</a> <span class="pill new">NEW</span></h2>
-        <p>Project <b>what-if</b> into future space: a ghost path of hypothetical prices plus a <b>volatility cone</b> (±1σ/±2σ bands widening with √h from the current realized vol). "What if I'm right? What if we just chop?" — instant, fully local.</p>
-        <div class="codewrap"><pre class="code">chart.<span class="attr">setScenario</span>({
-  <span class="attr">path</span>: [64000, 65500, 66800, 68000],  <span class="cmt">// prices for future bars 1..N (or {price} objects)</span>
-  <span class="attr">cone</span>: <span class="tag">true</span>,                        <span class="cmt">// σ-bands from realized vol (default true)</span>
-  <span class="attr">label</span>: <span class="str">'bull case'</span>,
-  <span class="attr">color</span>: <span class="str">'up'</span>,                        <span class="cmt">// up | down | accent or safe CSS colors</span>
-});
-
-chart.<span class="attr">setScenario</span>({ <span class="attr">horizon</span>: 48 });            <span class="cmt">// cone-only projection</span>
-chart.<span class="attr">clearScenario</span>();
-chart.<span class="attr">scenario</span>;                          <span class="cmt">// getter</span></pre></div>
-        <p>The horizon defaults to the path length (1–500); setting a scenario reserves future space on the right so the cone stays visible. Levels are σ multipliers (default <code>[1, 2]</code>). Like overlays, scenarios are analysis data — excluded from shareable chart state, and the same shape a server-side model could push.</p>
-
-        <div class="demo-card">
-          <div class="demo-head">
-            <span class="t">Live playground</span><span class="spacer"></span>
-            <span class="seg" id="sc-seg"></span>
-            <span class="seg" id="sc-hseg"></span>
-          </div>
-          <wick-feed for="ex-sc" demo="BTC" tf="1h" limit="300"></wick-feed>
-          <wick-chart id="ex-sc" label="BTC · 1h · scenario"></wick-chart>
-          <div class="foot" id="sc-foot"></div>
-        </div>
-      </section>
-
-      <section id="riskplan">
-        <h2>Risk planner <a class="anchor" href="#riskplan">#</a> <span class="pill new">NEW</span></h2>
-        <p>Plan the trade on the chart: <b>entry + stop define 1R</b> — the risk unit — and reward lines are drawn at kR beyond the entry, with the risk zone shaded red and the reward zone green. Sizing, take-profits and R-multiples read straight off the picture; no mental math, no Pro plan.</p>
-        <div class="codewrap"><pre class="code">chart.<span class="attr">setRiskPlan</span>({
-  <span class="attr">entry</span>: 64500,
-  <span class="attr">stop</span>: 63800,             <span class="cmt">// stop &lt; entry ⇒ long (else short)</span>
-  <span class="attr">multiples</span>: [1, 2, 3],       <span class="cmt">// dashed lines at +1R / +2R / +3R</span>
-  <span class="attr">label</span>: <span class="str">'breakout plan'</span>,
-});
-
-chart.<span class="attr">setRiskPlan</span>({ entry: 64500, stop: 63800, <span class="attr">targets</span>: [65900, 67300] }); <span class="cmt">// prices → kR</span>
-chart.<span class="attr">clearRiskPlan</span>();
-chart.<span class="attr">riskPlan</span>;                      <span class="cmt">// getter → { entry, stop, risk, direction, levels }</span></pre></div>
-        <p>Direction is derived from the stop side. Explicit <code>targets</code> convert to their R multiple (wrong-side prices are dropped); <code>multiples</code> win when both are given. At most 8 levels, each ≤ 20R; invalid specs clear the plan (replace semantics), never throw. Like overlays and scenarios, plans are app state — excluded from <code>getState()</code>.</p>
-
-        <div class="demo-card">
-          <div class="demo-head">
-            <span class="t">Live playground</span><span class="spacer"></span>
-            <span class="seg" id="rp-seg"></span>
-          </div>
-          <wick-feed for="ex-rp" demo="BTC" tf="1h" limit="300"></wick-feed>
-          <wick-chart id="ex-rp" label="BTC · 1h · risk plan"></wick-chart>
-          <div class="foot" id="rp-foot">no plan — pick a preset</div>
-        </div>
-      </section>
-
       <section id="timezone">
         <h2>Timezone &amp; sessions <a class="anchor" href="#timezone">#</a></h2>
         <p>Axis labels and the crosshair readout use the viewer's own timezone by default. Set <code>timezone</code> to pin them somewhere specific — <code>utc</code>, or any IANA zone, DST included:</p>
@@ -620,31 +561,6 @@ chart.<span class="attr">addEventListener</span>('wick:alert', (e) =&gt; console
         </div>
       </section>
 
-      <section id="narrate">
-        <h2>Bar-walk narrator <a class="anchor" href="#narrate">#</a> <span class="pill new">NEW</span></h2>
-        <p>Two pieces that turn history into a story. <code>narrate()</code> is the <b>timeline</b>: pivot highs/lows, volume spikes, gaps, RSI divergences plus derived <b>legs</b> — the move between opposite pivots ("+12.4% over 38 bars"). <code>walk()</code> is the <b>player</b>: the viewport slides through history while <code>wick:walk</code> events announce each step and the events as they're crossed. Wire the event to a caption bar and your chart tells itself.</p>
-        <div class="codewrap"><pre class="code">chart.<span class="attr">narrate</span>();                     <span class="cmt">// timeline for the visible range</span>
-chart.<span class="attr">narrate</span>({ from, to });         <span class="cmt">// …or any time window (ms or s)</span>
-<span class="cmt">// → [{ i, time, type, side, note, legPct?, legBars? }] — sorted, capped at 60</span>
-
-chart.<span class="attr">walk</span>({ from: 0, to: 500, speed: 120, step: 10 });
-chart.addEventListener(<span class="str">'wick:walk'</span>, (e) =&gt; {
-  <span class="cmt">// { phase: 'step' | 'end' | 'stop', index, events: [...], from, to }</span>
-});
-chart.<span class="attr">stopWalk</span>();                      <span class="cmt">// any pointer/wheel/key input stops it too</span></pre></div>
-        <div class="note">The walk is a local replay of real history (not a projection — see <a href="#scenario">scenario mode</a> for what-ifs). During a walk the chart also broadcasts its moving viewport over co-view, so peers watch the tour with you.</div>
-
-        <div class="demo-card">
-          <div class="demo-head">
-            <span class="t">Live playground</span><span class="spacer"></span>
-            <span class="seg" id="nw-seg"></span>
-          </div>
-          <wick-feed for="ex-nw" demo="BTC" tf="1h" limit="400"></wick-feed>
-          <wick-chart id="ex-nw" label="BTC · 1h · narrated walk"></wick-chart>
-          <div class="foot" id="nw-foot">pick a speed and press play</div>
-        </div>
-      </section>
-
       <section id="brush">
         <h2>Delta brush <a class="anchor" href="#brush">#</a> <span class="pill new">NEW</span></h2>
         <p>Turn on <code>brush</code> and a plain drag <b>selects bars</b> instead of panning: a live band follows the pointer with a delta chip (Δ% · bars · high · low · Σvol), and on release the selection stays with the stats committed. The measure tool still works with shift-drag.</p>
@@ -669,40 +585,6 @@ chart.<span class="attr">clearBrush</span>();        <span class="cmt">// Esc do
         </div>
       </section>
 
-      <section id="story">
-        <h2>Story mode <a class="anchor" href="#story">#</a> <span class="pill new">NEW</span></h2>
-        <p>Guided tours of chart state: a <b>story</b> is an array of <b>scenes</b>, and each scene is a snapshot — view range, series type, indicators, overlays, scenario, risk plan, plus a title and note. <code>playStory()</code> applies each scene, eases the camera to its range, holds for its <code>dwell</code>, then moves on, narrating through <code>wick:story</code> events. Record one with <code>captureScene()</code> while you set the chart up, or build scenes programmatically.</p>
-        <div class="codewrap"><pre class="code"><span class="cmt">// record while you arrange the chart…</span>
-<span class="tag">const</span> story = [ chart.<span class="attr">captureScene</span>(<span class="str">'Overview'</span>, <span class="str">'the full picture'</span>) ];
-chart.setAttribute(<span class="str">'indicators'</span>, <span class="str">'sma:20 rsi:14'</span>);
-story.push(chart.<span class="attr">captureScene</span>(<span class="str">'With indicators'</span>, <span class="str">'trend + momentum'</span>));
-<span class="cmt">// …or write scenes by hand (every field optional)</span>
-story.push({
-  <span class="attr">title</span>: <span class="str">'The plan'</span>, <span class="attr">note</span>: <span class="str">'bull scenario + 1R grid'</span>,
-  <span class="attr">range</span>: { from, to },            <span class="cmt">// the camera eases there</span>
-  <span class="attr">indicators</span>: <span class="str">'sma:20'</span>, <span class="attr">type</span>: <span class="str">'candles'</span>,
-  <span class="attr">scenario</span>: bullPath, <span class="attr">riskPlan</span>: grid,  <span class="cmt">// or null to clear each</span>
-  <span class="attr">dwell</span>: 2400,
-});
-
-chart.<span class="attr">playStory</span>(story, { dwell: 2200, panMs: 900, loop: <span class="tag">false</span> });
-chart.addEventListener(<span class="str">'wick:story'</span>, (e) =&gt; {
-  <span class="cmt">// { phase: 'scene' | 'end' | 'stop', index, total, scene, title, note }</span>
-});
-chart.<span class="attr">stopStory</span>();  chart.<span class="attr">getStory</span>();   <span class="cmt">// stop · last played story</span></pre></div>
-        <div class="note">Any user interaction — pointer, wheel, keys, double-click — stops the tour (fires <code>phase: 'stop'</code>). Scenes are plain data: serialize them, share them, or generate them from an analysis — invalid entries drop silently, max 20 scenes, dwell clamps to 500–30000 ms.</div>
-
-        <div class="demo-card">
-          <div class="demo-head">
-            <span class="t">Live playground — a tour generated from the data</span><span class="spacer"></span>
-            <span class="seg" id="st-seg"></span>
-          </div>
-          <wick-feed for="ex-st" demo="BTC" tf="1h" limit="400"></wick-feed>
-          <wick-chart id="ex-st" label="BTC · 1h · story"></wick-chart>
-          <div class="foot" id="st-foot">build & play — the tour narrates below</div>
-        </div>
-      </section>
-
       <section id="ai">
         <h2>AI-ready data window <a class="anchor" href="#ai">#</a></h2>
         <p><code>getDataWindow()</code> turns the visible range into a compact, paste-anywhere summary — trend (least-squares drift + fit), vol percentile, SMA/RSI snapshot, patterns. All computed locally.</p>
@@ -717,38 +599,7 @@ s.patterns;   <span class="cmt">// [{ time, note }] — most recent first</span>
           <wick-chart id="ex-ai" label="BTC · 4h" indicators="sma:20 rsi:14"></wick-chart>
           <pre class="out" id="ai-out" style="display:none"></pre>
         </div>
-      </section>
-      <section id="agent">
-        <h2>AI agent interface <a class="anchor" href="#agent">#</a> <span class="pill new">NEW</span></h2>
-        <p>The chart can publish its own <b>tool manifest</b> and accept validated tool-calls — wire <em>any</em> LLM to it with zero glue. The chart itself never touches the network: you supply the model call.</p>
-        <div class="codewrap"><pre class="code"><span class="cmt">// 1 — the pieces (paste aiPrompt() into any chat, then apply the answer)</span>
-chart.<span class="attr">aiTools</span>();    <span class="cmt">// tool manifest: get_data_window, set_indicators, set_overlays, add_alert, …</span>
-chart.<span class="attr">aiPrompt</span>();   <span class="cmt">// system prompt demanding JSON [{tool, args}] ops</span>
-chart.<span class="attr">aiContext</span>();  <span class="cmt">// grounding: current state + visible-window summary</span>
-chart.<span class="attr">applyAI</span>(ops); <span class="cmt">// validated dispatcher — each op returns {ok, result} or {ok:false, error}</span>
-
-<span class="cmt">// 2 — one call, full round trip (bring your own model)</span>
-<span class="tag">const</span> { results } = <span class="tag">await</span> chart.<span class="attr">ask</span>(
-  <span class="str">'add RSI, mark the demand zone below price, and alert me on volume spikes'</span>,
-  { <span class="attr">run</span>: <span class="tag">async</span> (payload) =&gt; (<span class="tag">await</span> callMyLLM(payload)).ops }
-);</pre></div>
-        <p>Every op is whitelisted and its args validated (indicator names checked against the registry, overlays through the normal sanitizer, enums enforced) — LLM output is untrusted input, so a bad op returns an error the model can self-correct from instead of breaking the chart.</p>
-
-        <div class="demo-card">
-          <div class="demo-head">
-            <span class="t">Live playground</span>
-            <span class="spacer"></span>
-            <span style="font-size:12px;color:var(--muted)">offline demo agent — no LLM, no network</span>
-          </div>
-          <div style="display:flex; gap:8px; padding:10px 14px; border-bottom:1px solid var(--border); background: var(--panel); flex-wrap:wrap;">
-            <input type="text" id="ag-instruction" style="flex:1 1 320px" spellcheck="false"
-                   value="show RSI and MACD, mark the demand zone, and alert on volume spikes" aria-label="Instruction for the demo agent" />
-            <button class="primary" id="ag-run">Run agent → applyAI()</button>
-          </div>
-          <wick-feed for="ex-agent" demo="BTC" tf="1h" limit="300"></wick-feed>
-          <wick-chart id="ex-agent" label="BTC · 1h · agent-controlled" indicators="sma:20"></wick-chart>
-          <pre class="out" id="ag-out" style="display:none"></pre>
-        </div>
+        <div class="note">The <b>agent interface</b> that drives the chart with validated tool-calls (<code>aiTools()</code>, <code>aiPrompt()</code>, <code>aiContext()</code>, <code>applyAI()</code>, <code>ask()</code>) lives in the <a href="./plugins.html#ai">wickchart-ai plugin</a> — along with the narrator/story, co-view and scenario/risk-plan families on the <a href="./plugins.html">plugins hub</a>.</div>
       </section>
 
       <section id="feeds">
@@ -885,29 +736,6 @@ location.hash = encodeStateQuery(chart.getState());   <span class="cmt">// → U
         <p>The canvas carries an <code>aria-label</code> with the latest price, change % and bar count; crosshair + legend keep a text readout for pointer users.</p>
       </section>
 
-      <section id="coview">
-        <h2>Co-view presence <a class="anchor" href="#coview">#</a> <span class="pill new">NEW</span></h2>
-        <p>Charts sharing a <code>co-view</code> room see each other: peer <b>crosshairs</b> appear as ghosts, and now peer <b>viewports</b> render as colored bands along the top of the plot — like document cursors, but for where each person is looking. Pan one chart and every peer watches your window slide; zoom out and they see you zoom out.</p>
-        <div class="codewrap"><pre class="code">&lt;wick-chart <span class="attr">co-view</span>=<span class="str">"warroom"</span> <span class="attr">co-view-name</span>=<span class="str">"ben"</span>&gt;&lt;/wick-chart&gt;
-
-chart.<span class="attr">getPeers</span>();
-<span class="cmt">// [{ id: 'p9xk2a', name: 'maya', range: { from: 1725148800000, to: 1725840000000 }, at: … }]</span>
-
-chart.addEventListener(<span class="str">'wick:peers'</span>, (e) =&gt; {
-  <span class="cmt">// e.detail = { peers, joined, left } — membership changes only</span>
-});</pre></div>
-        <div class="note">Transport is same-origin <code>BroadcastChannel</code> — tabs, windows, and multiple charts on one page. Peers fade ~12 s after their last sighting; a closed tab is a fast <code>bye</code>. Presence never leaves the browser: to sync across the network, forward <code>wick:range</code> through your own WebSocket and replay it — the component ships no network code.</div>
-
-        <div class="demo-card">
-          <div class="demo-head"><span class="t">Live playground — two charts, one room</span></div>
-          <wick-feed for="ex-cv-a" demo="BTC" tf="1h" limit="300"></wick-feed>
-          <wick-chart id="ex-cv-a" co-view="docs-room" co-view-name="alice" label="alice · drag me"></wick-chart>
-          <wick-feed for="ex-cv-b" demo="ETH" tf="1h" limit="300"></wick-feed>
-          <wick-chart id="ex-cv-b" co-view="docs-room" co-view-name="bob" label="bob · or me" style="border-top:1px solid var(--border)"></wick-chart>
-          <div class="foot" id="cv-foot">drag either chart — the other shows the peer's viewport band + ghost crosshair. <span id="cv-count"></span></div>
-        </div>
-      </section>
-
       <section id="react">
         <h2>React, Vue, Svelte <a class="anchor" href="#react">#</a></h2>
         <p>The element is framework-agnostic. For React there is an official binding — <code>react</code> is an optional peer dependency:</p>
@@ -1007,7 +835,7 @@ chart.addEventListener(<span class="str">'wick:drawings'</span>, (e) =&gt; save(
 
       <section id="family">
         <h2>The plugin family <a class="anchor" href="#family">#</a> <span class="pill new">NEW</span></h2>
-        <p>Eight opt-in packages now build on the <a href="#plugins">layer API</a> — each one a separate npm package, zero dependencies, wired through public surface only and kept small by its own CI gzip budget. The core chart stays plugin-free; you pay bytes only for what you attach.</p>
+        <p>Fifteen opt-in packages now build on the <a href="#plugins">layer API</a> — each one a separate npm package, zero dependencies, wired through public surface only and kept small by its own CI gzip budget. The core chart stays plugin-free; you pay bytes only for what you attach. The four newest (narrator, coview, scenario, ai) are the leading edge of the <a href="https://github.com/benyblack/wickchart/blob/main/ROADMAP-V2.md">2.0 split</a>: they document features that core still carries, and become their only home at 2.0.</p>
         <table>
           <tr><th>Package</th><th>What it gives you</th></tr>
           <tr><td><a href="https://www.npmjs.com/package/wickchart-draw">wickchart-draw</a></td><td>Drawing tools — trendline/ray/level/rect/fib/text with magnet snap, undo, JSON (de)serialization, optional cross-tab sharing</td></tr>
@@ -1019,6 +847,12 @@ chart.addEventListener(<span class="str">'wick:drawings'</span>, (e) =&gt; save(
           <tr><td><a href="https://www.npmjs.com/package/wickchart-layouts">wickchart-layouts</a></td><td>Named workspace snapshots — save/load/rename/delete/export/import of full chart state (+ drawings)</td></tr>
           <tr><td><a href="https://www.npmjs.com/package/wickchart-signals">wickchart-signals</a></td><td>Candlestick signals — engulfing, pin bar, inside bar chips with crosshair explanations (<code>setKinds([])</code> = off)</td></tr>
           <tr><td><a href="https://www.npmjs.com/package/wickchart-tape">wickchart-tape</a></td><td>Time &amp; sales — live trade prints docked below the chart, tick-rule side inference, <code>toBars()</code> feeds the chart from a trade stream (peer: wickchart ≥ 1.6)</td></tr>
+          <tr><td><a href="./plugins.html#grid">wickchart-grid</a></td><td>Multi-chart layout + sync — shared visible ranges and ghost crosshairs, echo-suppressed fan-out</td></tr>
+          <tr><td><a href="./plugins.html#paper">wickchart-paper</a></td><td>Paper trading on top of replay — honest fills (next-bar opens, gap-aware limits), equity curve, position mirroring</td></tr>
+          <tr><td><a href="./plugins.html#narrator">wickchart-narrator</a></td><td>Guided playback — the narrate() timeline, walk player, sonification and story tours (the <code>narrate</code>/<code>story</code>/<code>sonify</code> family)</td></tr>
+          <tr><td><a href="./plugins.html#coview">wickchart-coview</a></td><td>Cross-tab co-viewing — presence bands, shared crosshair ghosts, the public BroadcastChannel protocol (the <code>co-view</code> family)</td></tr>
+          <tr><td><a href="./plugins.html#scenario">wickchart-scenario</a></td><td>Planning — σ-cone projections and R-multiple risk plans (the <code>setScenario</code>/<code>setRiskPlan</code> family)</td></tr>
+          <tr><td><a href="./plugins.html#ai">wickchart-ai</a></td><td>The agent interface — tool manifest, system prompt, grounding context, validated dispatcher (the <code>aiTools</code>/<code>applyAI</code>/<code>ask</code> family)</td></tr>
         </table>
         <p>All of them follow the same shape — attach, configure, detach — and compose freely (the demo toolbar toggles most of them):</p>
         <div class="codewrap"><pre class="code"><span class="tag">import</span> { attachDrawings }  <span class="tag">from</span> <span class="str">'wickchart-draw'</span>;
@@ -1284,120 +1118,6 @@ nav.<span class="attr">detach</span>();  <span class="cmt">// everything detache
       });
     }
 
-    /* ---------- scenario playground ---------- */
-    {
-      const c = $('ex-sc'), foot = $('sc-foot');
-      let mode = 'off';
-      let horizon = 48;
-      const buildPath = (drift) => {
-        const d = c.data;
-        if (!d || !d.length) return [];
-        const last = d[d.length - 1].close;
-        const path = [];
-        let p = last;
-        for (let i = 1; i <= horizon; i++) {
-          const wiggle = Math.sin(i / 3.2) * Math.abs(drift) * 0.35;
-          p = p * (1 + drift + wiggle * 0.4);
-          path.push(p);
-        }
-        return path;
-      };
-      const apply = () => {
-        if (mode === 'off') {
-          c.clearScenario();
-          foot.textContent = 'no scenario — pick one';
-          return;
-        }
-        const spec = { horizon, cone: true, levels: [1, 2] };
-        if (mode === 'bull') { spec.path = buildPath(0.004); spec.label = 'bull case'; spec.color = 'up'; }
-        if (mode === 'bear') { spec.path = buildPath(-0.004); spec.label = 'bear case'; spec.color = 'down'; }
-        if (mode === 'chop') { spec.path = buildPath(0); spec.label = 'range'; spec.color = 'accent'; }
-        if (mode === 'cone') { spec.label = '±1σ / ±2σ'; spec.color = 'accent'; }
-        c.setScenario(spec);
-        const s = c.scenario;
-        foot.textContent = s
-          ? `${s.label} · ${s.path.length}-bar ghost path · cone ±${s.levels.join('σ/±')}σ over ${s.horizon} bars`
-          : 'scenario rejected';
-      };
-      seg($('sc-seg'), [
-        ['off', 'off'], ['bull', 'bull'], ['bear', 'bear'], ['chop', 'range'], ['cone', 'cone only'],
-      ], 'off', (v) => { mode = v; apply(); });
-      seg($('sc-hseg'), [['24', '24 bars'], ['48', '48 bars'], ['96', '96 bars']], '48', (v) => {
-        horizon = +v;
-        if (mode !== 'off') apply();
-      });
-      foot.textContent = 'no scenario — pick one';
-    }
-
-    /* ---------- risk plan playground ---------- */
-    {
-      const c = $('ex-rp'), foot = $('rp-foot');
-      const fmt = (v) => (v >= 1000 ? v.toFixed(0) : v.toFixed(2));
-      let mode = 'off';
-      const apply = () => {
-        const d = c.data;
-        if (!d || !d.length) { foot.textContent = 'waiting for data…'; return; }
-        if (mode === 'off') {
-          c.clearRiskPlan();
-          foot.textContent = 'no plan — pick a preset';
-          return;
-        }
-        const last = d[d.length - 1].close;
-        let spec = null;
-        if (mode === 'scalp') spec = { entry: last, stop: last * 0.99, multiples: [1, 2, 3], label: 'scalp 1:3' };
-        if (mode === 'swing') {
-          const lo = Math.min(...d.slice(-30).map((b) => b.low));
-          spec = { entry: last, stop: lo, targets: [last + 2 * (last - lo), last + 3 * (last - lo)], label: 'swing long' };
-        }
-        if (mode === 'short') spec = { entry: last, stop: last * 1.012, multiples: [1, 1.5, 2], label: 'fade 1:2' };
-        const p = c.setRiskPlan(spec);
-        foot.textContent = p
-          ? `${p.direction} · 1R = ${fmt(p.risk)} (${((p.risk / p.entry) * 100).toFixed(2)}%) · ${p.levels.length} levels to +${p.levels[p.levels.length - 1].k}R`
-          : 'plan rejected';
-      };
-      seg($('rp-seg'), [['off', 'off'], ['scalp', 'scalp 1%'], ['swing', 'swing'], ['short', 'short']], 'off', (v) => { mode = v; apply(); });
-      const kick = () => (c.data && c.data.length ? apply() : setTimeout(kick, 400));
-      setTimeout(kick, 500);
-    }
-
-    /* ---------- co-view presence playground ---------- */
-    {
-      const a = $('ex-cv-a'), b = $('ex-cv-b'), count = $('cv-count');
-      const upd = (src) => {
-        const peers = src.getPeers();
-        if (peers.length) count.textContent = `${src.getAttribute('co-view-name')} sees: ${peers.map((p) => p.name || p.id).join(', ')}.`;
-      };
-      a.addEventListener('wick:peers', () => upd(a));
-      b.addEventListener('wick:peers', () => upd(b));
-    }
-
-    /* ---------- bar-walk narrator playground ---------- */
-    {
-      const c = $('ex-nw'), foot = $('nw-foot');
-      let speed = 120;
-      const fmtT = (t) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit' });
-      c.addEventListener('wick:walk', (e) => {
-        const { phase, index, events, from, to } = e.detail;
-        if (phase === 'end') { foot.textContent = 'walk finished — press play again'; return; }
-        if (phase === 'stop') { foot.textContent = 'walk interrupted — press play again'; return; }
-        const notes = events.map((ev) => `${fmtT(ev.time)} · ${ev.note}`);
-        foot.textContent =
-          `bar ${index - from}/${to - from}` + (notes.length ? ` — ${notes.join(' · ')}` : ' …');
-      });
-      seg($('nw-seg'), [['120', '1×'], ['60', '2×'], ['30', '4×']], '120', (v) => { speed = +v; });
-      const play = document.createElement('button');
-      play.type = 'button';
-      play.textContent = '▶ play walk';
-      play.className = 'primary';
-      $('nw-seg').after(play);
-      play.addEventListener('click', () => {
-        const d = c.data;
-        if (!d || !d.length) { foot.textContent = 'waiting for data…'; return; }
-        c.walk({ from: 0, to: d.length - 1, speed });
-        foot.textContent = 'walking…';
-      });
-    }
-
     /* ---------- delta brush playground ---------- */
     {
       const c = $('ex-br'), foot = $('br-foot');
@@ -1576,44 +1296,6 @@ nav.<span class="attr">detach</span>();  <span class="cmt">// everything detache
       });
     }
 
-    /* ---------- story mode playground ---------- */
-    {
-      const c = $('ex-st'), foot = $('st-foot');
-      c.addEventListener('wick:story', (e) => {
-        const { phase, title, note, index, total } = e.detail;
-        if (phase === 'scene') foot.textContent = `scene ${index + 1}/${total} — ${title}: ${note}`;
-        else if (phase === 'end') foot.textContent = 'story finished — build & play again';
-        else foot.textContent = 'story interrupted — build & play again';
-      });
-      const build = () => {
-        const d = c.data;
-        if (!d || !d.length) return null;
-        const last = d.length - 1;
-        const T = (i) => d[Math.max(0, Math.min(last, i))].time;
-        const spike = c.narrate({ from: d[0].time, to: d[last].time }).find((ev) => ev.type === 'volspike');
-        const scenes = [
-          { title: 'Act I — the full picture', note: `${d.length} bars`, range: { from: d[0].time, to: d[last].time } },
-        ];
-        if (spike) scenes.push({ title: 'Act II — the volume spike', note: spike.note, range: { from: T(spike.i - 40), to: T(spike.i + 20) }, indicators: 'volume' });
-        scenes.push({ title: 'Act III — the recent trend', note: 'SMA 20 + RSI 14', range: { from: T(last - 120), to: d[last].time }, indicators: 'sma:20 rsi:14' });
-        scenes.push({ title: 'Act IV — the close', note: 'back to the last 60 bars, clean', range: { from: T(last - 60), to: d[last].time }, indicators: null, scenario: null });
-        return scenes;
-      };
-      let panMs = 900;
-      seg($('st-seg'), [['900', 'slow pan'], ['400', 'fast pan']], '900', (v) => { panMs = +v; });
-      const play = document.createElement('button');
-      play.type = 'button';
-      play.textContent = '▶ build & play';
-      play.className = 'primary';
-      $('st-seg').after(play);
-      play.addEventListener('click', () => {
-        const story = build();
-        if (!story) { foot.textContent = 'waiting for data…'; return; }
-        foot.textContent = `playing ${story.length} scenes…`;
-        c.playStory(story, { dwell: 1800, panMs });
-      });
-    }
-
     /* ---------- trading ---------- */
     {
       const c = $('ex-trade'), foot = $('trade-foot');
@@ -1659,50 +1341,6 @@ nav.<span class="attr">detach</span>();  <span class="cmt">// everything detache
       out.style.display = 'block';
       out.textContent = $('ex-ai').getDataWindow().text;
     });
-
-    /* ---------- offline demo agent (no LLM — keyword → ops, via applyAI) ---------- */
-    {
-      const c = $('ex-agent'), out = $('ag-out');
-      const agentOps = (instruction) => {
-        const s = String(instruction).toLowerCase();
-        const ops = [];
-        if (/(summary|explain|analy[sz])/.test(s)) ops.push({ tool: 'get_data_window' });
-        const ind = [];
-        if (s.includes('rsi')) ind.push('rsi:14');
-        if (s.includes('macd')) ind.push('macd:12/26/9');
-        if (s.includes('sma')) ind.push('sma:20');
-        if (ind.length) ops.push({ tool: 'set_indicators', args: { indicators: ind.join(' ') } });
-        for (const t of ['line', 'area', 'candles', 'heikin']) {
-          if (s.includes(t)) ops.push({ tool: 'set_type', args: { type: t } });
-        }
-        if (/(zone|demand|supply|support)/.test(s)) {
-          const d = c.data;
-          if (d && d.length) {
-            const recent = d.slice(-140);
-            let hi = -Infinity, lo = Infinity;
-            for (const b of recent) { if (b.high > hi) hi = b.high; if (b.low < lo) lo = b.low; }
-            ops.push({ tool: 'set_overlays', args: { overlays: [
-              { type: 'zone', priceFrom: hi * 1.004, priceTo: hi * 1.028, color: '#26a69a', alpha: 0.2, label: 'supply' },
-              { type: 'zone', priceFrom: lo * 0.972, priceTo: lo * 0.996, color: '#ef5350', alpha: 0.2, label: 'demand' },
-            ] } });
-          }
-        }
-        if (/alert/.test(s)) ops.push({ tool: 'add_alert', args: { when: 'volume > sma(volume,20) * 3' } });
-        if (/(shading|volatil)/.test(s)) ops.push({ tool: 'set_volshading', args: { enabled: true, low: 20, high: 85 } });
-        if (!ops.length) ops.push({ tool: 'get_data_window' });
-        return ops;
-      };
-      $('ag-run').addEventListener('click', () => {
-        const ops = agentOps($('ag-instruction').value);
-        const results = c.applyAI(ops);
-        out.style.display = 'block';
-        out.textContent =
-          'ops →\n' + JSON.stringify(ops, null, 2) + '\n\nresults →\n' +
-          results
-            .map((r) => (r.ok ? '✓ ' + r.tool : '✗ ' + (r.tool || '?') + ' — ' + r.error))
-            .join('\n');
-      });
-    }
 
     /* ---------- report export ---------- */
     {

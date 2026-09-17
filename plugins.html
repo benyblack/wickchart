@@ -527,6 +527,7 @@ paper.<span class="attr">stats</span>;             <span class="cmt">// equity, 
 <span class="tag">const</span> narrator = <span class="attr">attachNarrator</span>(chart);   <span class="cmt">// methods land on the instance</span>
 chart.<span class="attr">narrate</span>({ from, to });        <span class="cmt">// the event timeline</span>
 chart.<span class="attr">walk</span>({ from: <span class="str">0</span>, speed: <span class="str">120</span> });      <span class="cmt">// narrated viewport replay</span>
+chart.<span class="attr">stopWalk</span>();                     <span class="cmt">// any pointer/wheel/key input stops it too</span>
 chart.<span class="attr">playRange</span>();                   <span class="cmt">// ~4s pitch sweep (needs a click first)</span>
 <span class="tag">const</span> tour = [
   chart.<span class="attr">captureScene</span>(<span class="str">'Overview'</span>, <span class="str">'The full picture'</span>),
@@ -536,7 +537,7 @@ chart.<span class="attr">playStory</span>(tour, { <span class="attr">loop</span>
 narrator.<span class="attr">detach</span>();
 
 chart.<span class="attr">addEventListener</span>(<span class="str">'wick:walk'</span>, (e) =&gt; …);  <span class="cmt">// { phase: step|end|stop, index, events }</span></pre></div>
-        <p>Scenes are plain data — title, note, a time <code>range</code>, <code>indicators</code>, series <code>type</code>, <code>overlays</code>, <code>scenario</code>/<code>riskPlan</code> (or <code>null</code> to clear) and a <code>dwell</code> — capped at 20, junk dropped. The timeline analyzer (<code>wickchart-narrator/core</code>) is pure and DOM-free; it imports the annotation detector from <code>wickchart/core</code> so the narrator and the annotations overlay can never disagree. First package of the 2.0 split: attaching shadows the core's own identical methods until 2.0 removes them.</p>
+        <p>Scenes are plain data — title, note, a time <code>range</code>, <code>indicators</code>, series <code>type</code>, <code>overlays</code>, <code>scenario</code>/<code>riskPlan</code> (or <code>null</code> to clear) and a <code>dwell</code> — capped at 20, junk dropped, dwell clamped to 500–30000 ms; <code>playStory(story, { dwell, panMs, loop })</code> eases the camera between them and <code>stopStory()</code> / <code>getStory()</code> control the tour. Events: <code>wick:walk</code> <code>{ phase: 'step'|'end'|'stop', index, events, from, to }</code> and <code>wick:story</code> <code>{ phase: 'scene'|'end'|'stop', index, total, scene, title, note }</code>. Timeline entries carry <code>{ i, time, type, side, note, legPct?, legBars? }</code>, sorted and capped at 60; <code>walk({ from, to, speed, step })</code> any user input interrupts. The walk is a local replay of real history, not a projection — see <a href="#scenario">scenario</a> for what-ifs; during a walk the chart broadcasts its moving viewport over <a href="#coview">co-view</a>, so peers watch the tour with you. First package of the 2.0 split: attaching shadows the core's own identical methods until 2.0 removes them.</p>
         <div class="demo-card">
           <div class="demo-head">
             <span class="t">Playground</span><span class="spacer"></span>
@@ -562,7 +563,7 @@ coview.<span class="attr">detach</span>();
 
 <span class="cmt">// the protocol is public — anything that can postMessage can join:</span>
 <span class="cmt">// channel "wick-co-view:&lt;room&gt;", messages { v: 1, peer, type: view|cross|bye }</span></pre></div>
-        <p>Membership events fire on join and leave only — not on every move. Wrong-version, self-echoed and unknown messages are ignored by construction. The presence tracker and the protocol envelope are pure and DOM-free: <code>wickchart-coview/core</code> (<code>PresenceTracker</code>, <code>coWrap</code>/<code>coUnwrap</code>) — reusable over WebSockets. Second package of the 2.0 split; attaching shadows the core's identical machinery until 2.0 removes it.</p>
+        <p>Membership events fire on join and leave only — not on every move. Wrong-version, self-echoed and unknown messages are ignored by construction. Transport is same-origin <code>BroadcastChannel</code> — tabs, windows, and multiple charts on one page; presence never leaves the browser. To sync across the network, forward the core's public <code>wick:range</code> events through your own WebSocket and replay them — the plugin ships no network code. The presence tracker and the protocol envelope are pure and DOM-free: <code>wickchart-coview/core</code> (<code>PresenceTracker</code>, <code>coWrap</code>/<code>coUnwrap</code>) — reusable over WebSockets. Second package of the 2.0 split; attaching shadows the core's identical machinery until 2.0 removes it.</p>
         <div class="demo-card">
           <div class="demo-head">
             <span class="t">Playground</span><span class="spacer"></span>
@@ -624,11 +625,18 @@ ai.<span class="attr">detach</span>();</pre></div>
         <div class="demo-card">
           <div class="demo-head">
             <span class="t">Playground</span><span class="spacer"></span>
+            <span style="font-size:12px;color:var(--muted)">offline demo agent — no LLM, no network</span>
             <span id="ai-btns"></span>
+          </div>
+          <div style="display:flex; gap:8px; padding:10px 14px; border-bottom:1px solid var(--border); background: var(--panel); flex-wrap:wrap;">
+            <input type="text" id="ag-instruction" style="flex:1 1 280px" spellcheck="false"
+                   value="show RSI and MACD, mark the demand zone, and alert on volume spikes" aria-label="Instruction for the demo agent" />
+            <button class="primary" id="ag-run">Run agent → applyAI()</button>
           </div>
           <wick-feed for="ex-ai" demo="BTC" tf="1h" limit="400"></wick-feed>
           <wick-chart id="ex-ai" label="BTC · 1h · ai"></wick-chart>
-          <div class="foot" id="ai-foot">the manifest + prompt + context, and a canned op batch applied through the validated dispatcher — no network involved</div>
+          <pre id="ag-out" style="display:none; margin:0; padding:10px 14px; font-size:11.5px; line-height:1.55; overflow:auto; max-height:220px; border-top:1px solid var(--border); background:var(--code-bg, #0b0f16)"></pre>
+          <div class="foot" id="ai-foot">the demo agent parses keywords into ops and applies them through the validated dispatcher — wire a real model via chart.ask(instruction, { run })</div>
         </div>
         <div class="note">Peer: <b>wickchart ≥ 1.4</b>, imports the manifest/prompt/dispatcher from <code>wickchart/core</code> (CDN users: import map). Part of the <a href="https://github.com/benyblack/wickchart/blob/main/ROADMAP-V2.md">2.0 plan</a>.</div>
       </section>
@@ -1221,6 +1229,7 @@ ai.<span class="attr">detach</span>();</pre></div>
     {
       const c = $('ex-ai');
       const foot = $('ai-foot');
+      const out = $('ag-out');
       let ai = null;
       const ensure = () => {
         if (ai) return ai;
@@ -1238,17 +1247,49 @@ ai.<span class="attr">detach</span>();</pre></div>
         const ctx = c.aiContext();
         foot.textContent = 'state.type=' + ctx.state.type + ' · window: ' + String(ctx.window.text).split('\n')[0].slice(0, 90);
       });
-      mkBtn($('ai-btns'), 'Demo ops', 'a canned {tool, args} batch through the validated dispatcher', () => {
+      // offline demo agent: keywords → ops, applied through the validated
+      // dispatcher — a stand-in for the model call you would wire via ask()
+      const agentOps = (instruction) => {
+        const s = String(instruction).toLowerCase();
+        const ops = [];
+        if (/(summary|explain|analy[sz])/.test(s)) ops.push({ tool: 'get_data_window' });
+        const ind = [];
+        if (s.includes('rsi')) ind.push('rsi:14');
+        if (s.includes('macd')) ind.push('macd:12/26/9');
+        if (s.includes('sma')) ind.push('sma:20');
+        if (ind.length) ops.push({ tool: 'set_indicators', args: { indicators: ind.join(' ') } });
+        for (const t of ['line', 'area', 'candles', 'heikin']) {
+          if (s.includes(t)) ops.push({ tool: 'set_type', args: { type: t } });
+        }
+        if (/(zone|demand|supply|support)/.test(s)) {
+          const d = c.data;
+          if (d && d.length) {
+            const recent = d.slice(-140);
+            let hi = -Infinity, lo = Infinity;
+            for (const b of recent) { if (b.high > hi) hi = b.high; if (b.low < lo) lo = b.low; }
+            ops.push({ tool: 'set_overlays', args: { overlays: [
+              { type: 'zone', priceFrom: hi * 1.004, priceTo: hi * 1.028, color: '#26a69a', alpha: 0.2, label: 'supply' },
+              { type: 'zone', priceFrom: lo * 0.972, priceTo: lo * 0.996, color: '#ef5350', alpha: 0.2, label: 'demand' },
+            ] } });
+          }
+        }
+        if (/alert/.test(s)) ops.push({ tool: 'add_alert', args: { when: 'volume > sma(volume,20) * 3' } });
+        if (/(shading|volatil)/.test(s)) ops.push({ tool: 'set_volshading', args: { enabled: true, low: 20, high: 85 } });
+        if (!ops.length) ops.push({ tool: 'get_data_window' });
+        return ops;
+      };
+      $('ag-run').addEventListener('click', () => {
         ensure();
-        const d = c.data;
-        const p0 = d && d.length ? d[d.length - 1].close : 100;
-        const rs = c.applyAI([
-          { tool: 'set_indicators', args: { indicators: 'sma:20 ema:50' } },
-          { tool: 'set_overlays', args: { overlays: [{ type: 'level', price: p0, color: '#22d3ee', label: 'model level' }] } },
-          { tool: 'set_indicators', args: { indicators: 'nosuch:9' } },
-        ]);
-        const ok = rs.filter(r => r.ok).length;
-        foot.textContent = ok + '/' + rs.length + ' ops applied — the bad one reports {ok:false} instead of throwing';
+        const ops = agentOps($('ag-instruction').value);
+        const results = c.applyAI(ops);
+        out.style.display = 'block';
+        out.textContent =
+          'ops →\n' + JSON.stringify(ops, null, 2) + '\n\nresults →\n' +
+          results
+            .map((r) => (r.ok ? '✓ ' + r.tool : '✗ ' + (r.tool || '?') + ' — ' + r.error))
+            .join('\n');
+        const ok = results.filter(r => r.ok).length;
+        foot.textContent = ok + '/' + results.length + ' ops applied — a real model answers chart.ask() the same way';
       });
     }
   </script>

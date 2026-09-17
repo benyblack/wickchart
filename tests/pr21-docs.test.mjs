@@ -8,6 +8,17 @@ import { readFileSync } from 'node:fs';
 
 const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
 const docs = read('docs.html');
+const hub = read('plugins.html');
+// The 2.0 split's plugin-surface attributes / methods / events (moved to
+// the plugins hub; core keeps identical copies until the 2.0 cut):
+const PLUGIN_ATTRS = ['co-view', 'co-view-name', 'sonify'];
+const PLUGIN_METHODS = [
+  'setScenario', 'clearScenario', 'setRiskPlan', 'clearRiskPlan',
+  'getPeers', 'narrate', 'walk', 'stopWalk', 'playRange',
+  'captureScene', 'getStory', 'playStory', 'stopStory',
+  'aiTools', 'aiPrompt', 'aiContext', 'applyAI', 'ask',
+];
+const PLUGIN_EVENTS = ['walk', 'story', 'peers'];
 
 test('docs page ships and is wired into the site, landing, and README', () => {
   assert.ok(docs.includes('<section id="start">'), 'getting-started section present');
@@ -27,7 +38,9 @@ test('every observed attribute is documented', () => {
   const attrs = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
   assert.ok(attrs.length >= 13, `expected the full attribute list, got ${attrs.length}`);
   for (const a of attrs) {
-    assert.ok(docs.includes(a), `attribute "${a}" missing from docs.html`);
+    const where = PLUGIN_ATTRS.includes(a) ? hub : docs;
+    const page = PLUGIN_ATTRS.includes(a) ? 'plugins.html' : 'docs.html';
+    assert.ok(where.includes(a), `attribute "${a}" missing from ${page}`);
   }
 });
 
@@ -38,18 +51,16 @@ test('every public method is documented', () => {
     'addPosition', 'removePosition', 'clearPositions',
     'addAlert', 'removeAlert', 'clearAlerts',
     'setOverlays', 'addOverlay', 'removeOverlay', 'clearOverlays',
-    'setScenario', 'clearScenario',
-    'setRiskPlan', 'clearRiskPlan',
-    'getPeers', 'narrate', 'walk', 'stopWalk',
     'clearBrush', 'brushSelection',
-    'captureScene', 'getStory', 'playStory', 'stopStory',
     'addLayer', 'removeLayer', 'requestDraw',
     'timeToX', 'xToTime', 'priceToY', 'yToPrice',
     'registerIndicator', 'onloadmore',
-    'aiTools', 'aiPrompt', 'aiContext', 'applyAI', 'ask',
   ];
   for (const m of methods) {
     assert.ok(docs.includes(m), `method "${m}" missing from docs.html`);
+  }
+  for (const m of PLUGIN_METHODS) {
+    assert.ok(hub.includes(m), `plugin method "${m}" missing from plugins.html`);
   }
 });
 
@@ -58,7 +69,10 @@ test('every chart event is documented', () => {
   const events = [...new Set([...src.matchAll(/_fire\('([a-z]+)'/g)].map((x) => x[1]))];
   assert.ok(events.length >= 6, `expected the event list, got ${events.length}`);
   for (const e of events) {
-    assert.ok(docs.includes(`wick:${e}`), `event "wick:${e}" missing from docs.html`);
+    const moved = PLUGIN_EVENTS.includes(e);
+    const where = moved ? hub : docs;
+    const page = moved ? 'plugins.html' : 'docs.html';
+    assert.ok(where.includes(`wick:${e}`), `event "wick:${e}" missing from ${page}`);
   }
   assert.ok(docs.includes('wick-feed:status'), 'feed status event documented');
 });

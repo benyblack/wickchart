@@ -145,13 +145,13 @@ test('presence is wired into the chart: attribute, heartbeat, broadcast, bands',
   assert.match(bands, /p\.name \|\| p\.id/, 'bands label peers by name or id');
 });
 
-test('docs cover co-view presence: API, event, attribute, transport note', () => {
-  const docs = read('docs.html');
-  const sec = docs.slice(docs.indexOf('id="coview"'), docs.indexOf('id="react"'));
-  assert.ok(sec.length > 1200, 'coview section is substantive');
+test('the plugins hub covers co-view presence: API, event, attribute, transport note', () => {
+  const hub = read('plugins.html');
+  const sec = hub.slice(hub.indexOf('id="coview"'), hub.indexOf('id="scenario"'));
+  assert.ok(sec.length > 1200, 'coview coverage is substantive');
   for (const s of ['getPeers', 'wick:peers', 'co-view-name', 'co-view', 'BroadcastChannel', 'wick:range', 'joined', 'left']) {
-    assert.ok(sec.includes(s), `"${s}" missing from the docs section`);
+    assert.ok(sec.includes(s), `"${s}" missing from the hub coview section`);
   }
-  assert.ok(docs.includes('href="#coview"'), 'TOC links the section');
+  assert.ok(hub.includes('href="#coview"'), 'hub TOC links the section');
   assert.ok(read('README.md').includes('getPeers()'), 'README mentions getPeers()');
 });

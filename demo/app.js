@@ -10,6 +10,9 @@ import { attachAlertsPlus } from '../plugins/alerts-plus/alerts-plus.mjs';
 import { attachLayouts } from '../plugins/layouts/layouts.mjs';
 import { attachSignals } from '../plugins/signals/signals.mjs';
 import { attachTape } from '../plugins/tape/tape.mjs';
+import { attachNarrator } from '../plugins/narrator/narrator.mjs';
+import { attachScenario } from '../plugins/scenario/scenario.mjs';
+import { attachAI } from '../plugins/ai/ai.mjs';
 import {
   genSynthetic,
   makeSynthStream,
@@ -74,6 +77,14 @@ const state = {
 };
 
 const chart = document.getElementById('chart');
+
+/* The 2.0 path: guided playback (narrate/walk/sonify/story), planning
+ * (scenario/risk plan) and the agent surface come from their packages —
+ * attaching shadows the core's identical methods, so every button below
+ * already exercises the plugin code the 2.0 cut makes canonical. */
+attachNarrator(chart);
+attachScenario(chart);
+attachAI(chart);
 
 /* ------------------------------------------------------------------ *
  * Synthetic data (works fully offline)

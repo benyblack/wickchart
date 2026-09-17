@@ -91,12 +91,13 @@ test('risk plan stays out of getState — it is app state, not chart state', () 
   assert.doesNotMatch(src, /riskPlan\s*:/, 'no riskPlan key in serialized state');
 });
 
-test('docs cover the risk planner API and semantics', () => {
-  const docs = read('docs.html');
-  const sec = docs.slice(docs.indexOf('id="riskplan"'), docs.indexOf('id="trading"'));
-  assert.ok(sec.length > 1500, 'risk planner section is substantive');
+test('the plugins hub covers the risk planner API and semantics', () => {
+  const hub = read('plugins.html');
+  const sec = hub.slice(hub.indexOf('id="scenario"'), hub.indexOf('id="ai"'));
+  assert.ok(sec.length > 1500, 'risk planner coverage is substantive');
   for (const s of ['setRiskPlan', 'clearRiskPlan', 'riskPlan', 'multiples', 'targets', 'entry', 'stop', 'direction']) {
-    assert.ok(sec.includes(s), `"${s}" missing from the docs section`);
+    assert.ok(sec.includes(s), `"${s}" missing from the hub scenario section`);
   }
-  assert.ok(docs.includes('href="#riskplan"'), 'TOC links the section');
+  assert.ok(hub.includes('href="#scenario"'), 'hub TOC links the section');
+  assert.ok(read('README.md').includes('getPeers()'), 'README mentions getPeers()');
 });

@@ -140,13 +140,13 @@ test('narrator is wired into the chart: narrate(), walk(), stopWalk(), interrupt
   assert.match(dc, /this\.stopWalk\(true\)/, 'disconnect cleans the timer');
 });
 
-test('docs cover the narrator: API, event, interruption, live playground', () => {
-  const docs = read('docs.html');
-  const sec = docs.slice(docs.indexOf('id="narrate"'), docs.indexOf('id="ai"'));
-  assert.ok(sec.length > 1500, 'narrator section is substantive');
+test('the plugins hub covers the narrator: API, event, interruption, live playground', () => {
+  const hub = read('plugins.html');
+  const sec = hub.slice(hub.indexOf('id="narrator"'), hub.indexOf('id="coview"'));
+  assert.ok(sec.length > 1500, 'narrator coverage is substantive');
   for (const s of ['narrate', 'walk', 'stopWalk', 'wick:walk', 'legPct', 'speed', 'step']) {
-    assert.ok(sec.includes(s), `"${s}" missing from the docs section`);
+    assert.ok(sec.includes(s), `"${s}" missing from the hub narrator section`);
   }
-  assert.ok(docs.includes('href="#narrate"'), 'TOC links the section');
+  assert.ok(hub.includes('href="#narrator"'), 'hub TOC links the section');
   assert.ok(read('README.md').includes('Bar-walk narrator'), 'README documents the narrator');
 });
