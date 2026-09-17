@@ -200,12 +200,13 @@
         <li><a href="#grid">grid — multi-chart sync<span class="pkg">grid</span></a></li>
         <li><a href="#paper">paper — paper trading<span class="pkg">paper</span></a></li>
         <li><a href="#narrator">narrator — guided playback<span class="pkg">narrator</span></a></li>
+        <li><a href="#coview">coview — co-viewing<span class="pkg">coview</span></a></li>
       </ul>
     </aside>
 
     <main>
       <section id="start">
-        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">12 packages</span></h2>
+        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">13 packages</span></h2>
         <p>Everything here is an <b>opt-in package</b>, not core bytes: each plugin is a separate npm package, zero dependencies, built only on wickchart's public <a href="./docs.html#plugins">layer API</a> and kept small by its own CI gzip budget. The core chart stays lean — you pay bytes only for what you attach, and everything detaches cleanly.</p>
         <p>Every plugin follows the same shape: <code>attach</code> → configure → <code>detach</code>. Install any of them next to the chart:</p>
         <div class="codewrap"><pre class="code"><span class="tag">npm</span> install wickchart wickchart-sessions   <span class="cmt">// …or wickchart-draw, wickchart-tape, …</span>
@@ -226,6 +227,7 @@
           <tr><td><a href="#signals">wickchart-signals</a></td><td>engulfing / pin bar / inside-bar badges with hover explanations</td><td>3.6 KB</td><td>≥ 1.4</td></tr>
           <tr><td><a href="#tape">wickchart-tape</a></td><td>time &amp; sales — live prints docked below the chart, trades→bars</td><td>4.6 KB</td><td>≥ 1.6</td></tr>
           <tr><td><a href="#narrator">wickchart-narrator</a></td><td>guided playback — narrated timeline, bar-walk, sonification, story tours</td><td>8.6 KB</td><td>≥ 1.4</td></tr>
+          <tr><td><a href="#coview">wickchart-coview</a></td><td>cross-tab co-viewing — presence bands, shared crosshair, open protocol</td><td>5.0 KB</td><td>≥ 1.4</td></tr>
         </table>
         <div class="note"><b>Dock note:</b> the navigator and the tape both dock through the 1.6 <code>insetBottom</code> hook and share the single strip at the bottom of the canvas — attach one or the other. Every playground below is live: click around.</div>
       </section>
@@ -542,6 +544,36 @@ chart.<span class="attr">addEventListener</span>(<span class="str">'wick:walk'</
         </div>
         <div class="note">Peer: <b>wickchart ≥ 1.4</b> (the one family member that imports <code>wickchart/core</code> — from a CDN, map that specifier with an import map). Part of the <a href="https://github.com/benyblack/wickchart/blob/main/ROADMAP-V2.md">2.0 plan</a>.</div>
       </section>
+
+      <section id="coview">
+        <h2>wickchart-coview <a class="anchor" href="#coview">#</a> <span class="size">5.0 KB gz</span></h2>
+        <p>Cross-tab co-viewing: charts that share a room name (<code>co-view="btc-warroom"</code>) keep each other briefed. Every pan/zoom broadcasts the visible window (throttled to ~8/s, heartbeat every 4 s), each chart renders the others' viewports as <b>labeled bands</b> along the top of the plot, and the <b>crosshair is shared live</b> — a dashed ghost mirrors the pointer of the tab you are pairing with. Closed tabs say goodbye; crashed tabs fade via the 12 s presence TTL.</p>
+        <div class="codewrap"><pre class="code"><span class="tag">&lt;wick-chart</span> <span class="attr">co-view</span>=<span class="str">"btc-warroom"</span> <span class="attr">co-view-name</span>=<span class="str">"Maya"</span><span class="tag">&gt;&lt;/wick-chart&gt;</span>
+
+<span class="tag">import</span> { attachCoview } <span class="tag">from</span> <span class="str">'wickchart-coview'</span>;
+<span class="tag">const</span> coview = <span class="attr">attachCoview</span>(chart);
+chart.<span class="attr">getPeers</span>();  <span class="cmt">// [{ id, name: 'Maya', range: {from,to}, at }]</span>
+chart.<span class="attr">addEventListener</span>(<span class="str">'wick:peers'</span>, (e) =&gt; …); <span class="cmt">// { peers, joined, left }</span>
+coview.<span class="attr">detach</span>();
+
+<span class="cmt">// the protocol is public — anything that can postMessage can join:</span>
+<span class="cmt">// channel "wick-co-view:&lt;room&gt;", messages { v: 1, peer, type: view|cross|bye }</span></pre></div>
+        <p>Membership events fire on join and leave only — not on every move. Wrong-version, self-echoed and unknown messages are ignored by construction. The presence tracker and the protocol envelope are pure and DOM-free: <code>wickchart-coview/core</code> (<code>PresenceTracker</code>, <code>coWrap</code>/<code>coUnwrap</code>) — reusable over WebSockets. Second package of the 2.0 split; attaching shadows the core's identical machinery until 2.0 removes it.</p>
+        <div class="demo-card">
+          <div class="demo-head">
+            <span class="t">Playground</span><span class="spacer"></span>
+            <span id="cv-btns"></span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px">
+            <wick-feed for="ex-cv1" demo="BTC" tf="1h" limit="400"></wick-feed>
+            <wick-feed for="ex-cv2" demo="ETH" tf="1h" limit="400"></wick-feed>
+            <wick-chart id="ex-cv1" label="BTC · 1h · coview"></wick-chart>
+            <wick-chart id="ex-cv2" label="ETH · 1h · coview"></wick-chart>
+          </div>
+          <div class="foot" id="cv-foot">pair the charts — each shows the other's viewport as a band; hovering one drives the dashed ghost on the other</div>
+        </div>
+        <div class="note">Peer: <b>wickchart ≥ 1.4</b>. Self-contained — imports nothing from wickchart. Works across tabs of the same browser (BroadcastChannel); rooms are per-origin. Part of the <a href="https://github.com/benyblack/wickchart/blob/main/ROADMAP-V2.md">2.0 plan</a>.</div>
+      </section>
     </main>
   </div>
 
@@ -558,6 +590,7 @@ chart.<span class="attr">addEventListener</span>(<span class="str">'wick:walk'</
     import './plugins/grid/grid.mjs';
     import { attachPaper } from './plugins/paper/paper.mjs';
     import { attachNarrator } from './plugins/narrator/narrator.mjs';
+    import { attachCoview } from './plugins/coview/coview.mjs';
 
     const $ = (id) => document.getElementById(id);
 
@@ -1031,6 +1064,44 @@ chart.<span class="attr">addEventListener</span>(<span class="str">'wick:walk'</
         c.stopStory();
         foot.textContent = 'stopped — any chart input interrupts playback too';
       });
+    }
+
+    /* ---------- coview ---------- */
+    {
+      const a = $('ex-cv1');
+      const b = $('ex-cv2');
+      const foot = $('cv-foot');
+      let ctlA = null;
+      let ctlB = null;
+      const pair = () => {
+        if (ctlA) return;
+        // attach first — the shadowed _setupCoView then handles the attribute
+        ctlA = attachCoview(a);
+        ctlB = attachCoview(b);
+        a.setAttribute('co-view', 'hub-playground');
+        b.setAttribute('co-view', 'hub-playground');
+        const brief = (c) =>
+          c.addEventListener('wick:peers', (e) => {
+            const names = e.detail.peers.map((p) => p.name || p.id).join(', ');
+            foot.textContent = names
+              ? 'in the room: ' + names + ' — pan one, the band follows; hover drives the ghost'
+              : 'room empty — the other chart left (or faded out after 12s)';
+          });
+        brief(a);
+        brief(b);
+        foot.textContent = 'paired over BroadcastChannel — pan or hover either chart';
+      };
+      const off = () => {
+        if (!ctlA) return;
+        ctlA.detach(); // goodbye goes out before the close
+        ctlB.detach();
+        a.removeAttribute('co-view');
+        b.removeAttribute('co-view');
+        ctlA = ctlB = null;
+        foot.textContent = 'detached — pair again to rejoin the room';
+      };
+      mkBtn($('cv-btns'), 'Pair', 'both charts join one room', pair);
+      mkBtn($('cv-btns'), 'Detach', 'goodbye and leave the room', off);
     }
   </script>
 </body>

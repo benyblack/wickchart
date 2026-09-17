@@ -1,0 +1,32 @@
+{
+  "name": "wickchart-coview",
+  "version": "0.1.0",
+  "description": "Cross-tab co-view for wickchart — charts sharing a room name broadcast their viewports (presence bands), share the crosshair live as a dashed ghost, and say goodbye on close; peers fade via TTL. Opt-in plugin, zero dependencies, public BroadcastChannel protocol.",
+  "type": "module",
+  "main": "coview.mjs",
+  "module": "coview.mjs",
+  "exports": {
+    ".": "./coview.mjs",
+    "./core": "./core.mjs"
+  },
+  "files": [
+    "coview.mjs",
+    "core.mjs",
+    "README.md"
+  ],
+  "keywords": [
+    "chart",
+    "charting",
+    "co-view",
+    "presence",
+    "collaboration",
+    "broadcastchannel",
+    "multi-tab",
+    "trading",
+    "wickchart"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "wickchart": ">=1.4.0"
+  }
+}

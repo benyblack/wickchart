@@ -90,6 +90,12 @@ const PAPER_FILES = ['plugins/paper/core.mjs', 'plugins/paper/paper.mjs'];
 const NARRATOR_BUDGET_GZ = 9 * 1024;
 const NARRATOR_FILES = ['plugins/narrator/core.mjs', 'plugins/narrator/narrator.mjs'];
 
+// coview: cross-tab co-view (presence tracker + BroadcastChannel protocol +
+// the attach layer driving the element's band/ghost seams). Self-contained —
+// imports nothing from wickchart. Landed at 5.0 KB gz.
+const COVIEW_BUDGET_GZ = 6 * 1024;
+const COVIEW_FILES = ['plugins/coview/core.mjs', 'plugins/coview/coview.mjs'];
+
 // The gzip budgets measure canonical content: CRLF is a checkout artifact
 // (core.autocrlf on Windows), not bytes anyone ships — the registry and CI
 // both normalize to LF, so the test does too before measuring.
@@ -276,5 +282,19 @@ test('wickchart-narrator plugin stays under its (smaller) gzip budget', () => {
   assert.ok(
     total <= NARRATOR_BUDGET_GZ,
     `wickchart-narrator is ${(total / 1024).toFixed(1)} KB gz, budget is ${NARRATOR_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
+  );
+});
+
+test('wickchart-coview plugin stays under its (smaller) gzip budget', () => {
+  let total = 0;
+  const parts = [];
+  for (const f of COVIEW_FILES) {
+    const n = gz(f);
+    total += n;
+    parts.push(`${f}: ${(n / 1024).toFixed(1)} KB gz`);
+  }
+  assert.ok(
+    total <= COVIEW_BUDGET_GZ,
+    `wickchart-coview is ${(total / 1024).toFixed(1)} KB gz, budget is ${COVIEW_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
   );
 });
