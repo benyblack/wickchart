@@ -207,11 +207,19 @@
 
     <section id="features">
       <h2>Everything a trader needs, nothing they don't</h2>
-      <p>Built as one Canvas-rendered element — ~110 KB unminified, no framework, no build step.</p>
+      <p>Built as one Canvas-rendered element — ~270 KB unminified, held under a 74 KB gzipped CI budget, no framework, no build step.</p>
       <div class="grid">
         <div class="card">
           <h3><span class="ico">⌁</span>Zero-dependency streaming</h3>
           <p><code>&lt;wick-feed&gt;</code> streams Binance over WebSocket with REST backfill — degrading gracefully to polling, then a synthetic bridge. Or bring your own data with <code>setData()</code> / <code>update()</code>.</p>
+        </div>
+        <div class="card">
+          <h3><span class="ico">⧗</span>Information-based bars</h3>
+          <p>One attribute off the clock: <code>aggregate="dollar:50000"</code> builds tick, volume or dollar bars client-side from the raw trade tape — Binance aggTrade WebSocket with paginated backfill, offline synthetic prints, or your own trades endpoint. Quant-grade, zero JavaScript.</p>
+        </div>
+        <div class="card">
+          <h3><span class="ico">⚙</span>Million-bar histories</h3>
+          <p><code>&lt;wick-chart worker&gt;</code> computes built-in indicators in a Web Worker — at 1M bars the longest main-thread freeze drops ~270&nbsp;ms → ~56&nbsp;ms — and streamed ticks patch series incrementally in O(warm-up) instead of recomputing history. <a href="./demo/worker.html">Watch it load a million bars live</a>.</p>
         </div>
         <div class="card">
           <h3><span class="ico">ƒ</span>15 built-in indicators + WickScript</h3>
@@ -223,7 +231,7 @@
         </div>
         <div class="card">
           <h3><span class="ico">⌥</span>A real plugin API</h3>
-          <p><code>addLayer()</code> paints into the render pipeline and claims pointer gestures, with coordinate transforms that extrapolate into future space. The whole surface is ~2&nbsp;KB — and a CI size budget keeps the core under 68&nbsp;KB gzipped, so “small” is an invariant, not a promise.</p>
+          <p><code>addLayer()</code> paints into the render pipeline and claims pointer gestures, with coordinate transforms that extrapolate into future space. The whole surface is ~2&nbsp;KB — and a CI size budget keeps the core under 74&nbsp;KB gzipped, so “small” is an invariant, not a promise.</p>
         </div>
         <div class="card">
           <h3><span class="ico">◐</span>Volatility-regime shading</h3>
@@ -235,7 +243,7 @@
         </div>
         <div class="card">
           <h3><span class="ico">⇄</span>Trading tools</h3>
-          <p>Positions with stop/target zones and live P&amp;L, edge-triggered price alerts, an R-multiple risk planner, scenario mode with σ-cones, shift-drag measure, visible-range stats, volume profile with POC/VAH/VAL — plus server-side zones &amp; levels via <code>setOverlays()</code>.</p>
+          <p>Positions with stop/target zones and live P&amp;L, edge-triggered price alerts, an R-multiple risk planner, scenario mode with σ-cones, shift-drag measure, visible-range stats, volume profile with POC/VAH/VAL — plus server-side zones &amp; levels via <code>setOverlays()</code>, and bar replay with paper trading &amp; an equity curve (<code>wickchart-replay</code> + <code>wickchart-paper</code>).</p>
         </div>
         <div class="card">
           <h3><span class="ico">🤖</span>AI-ready summaries</h3>
@@ -247,7 +255,7 @@
         </div>
         <div class="card">
           <h3><span class="ico">⧉</span>Share everything</h3>
-          <p>Chart state round-trips through the URL hash, PNG export is built in — and co-view syncs crosshairs, viewport presence bands and shared drawings across tabs, all over BroadcastChannel with no server.</p>
+          <p>Chart state round-trips through the URL hash, PNG export is built in, and <code>wickchart/report</code> composes chart + visible-range stats + watermark into one shareable snapshot — while co-view syncs crosshairs, viewport presence bands and shared drawings across tabs over BroadcastChannel, no server.</p>
         </div>
       </div>
     </section>
@@ -272,7 +280,7 @@
 chart.setData(bars);      <span class="cmt">// [{time,o,h,l,c,v}]</span>
 chart.update(bar);        <span class="cmt">// stream live</span>
 chart.getDataWindow();    <span class="cmt">// AI-ready summary</span></pre>
-          <p class="hint">Also exported: <code>wickchart/core</code> (pure functions — indicators, stats, the WickScript engine) and <code>wickchart/feed</code> (the declarative element). Drawing tools live in a separate package — <code>npm install wickchart-draw</code> — and the plugin API ships in the core.</p>
+          <p class="hint">Also exported: <code>wickchart/core</code> (pure functions — indicators, stats, the WickScript engine), <code>wickchart/feed</code> (the declarative element), <code>wickchart/worker</code> and <code>wickchart/report</code>. The wider family — drawings, replay, paper trading, grid sync, tape and more — is <a href="./plugins.html">11 opt-in packages</a>.</p>
         </div>
       </div>
 
@@ -298,6 +306,7 @@ chart.getDataWindow();    <span class="cmt">// AI-ready summary</span></pre>
       <a href="https://github.com/benyblack/wickchart">GitHub</a>
       <a href="https://www.npmjs.com/package/wickchart">npm</a>
       <a href="./demo/declarative.html">Declarative demo</a>
+      <a href="./demo/worker.html">1M-bar demo</a>
       <a href="./demo/react.html">React demo</a>
       <span class="sep">0.x <code>hab-*</code> names still work — see the README migration notes.</span>
     </footer>
