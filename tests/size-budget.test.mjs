@@ -104,6 +104,13 @@ const COVIEW_FILES = ['plugins/coview/core.mjs', 'plugins/coview/coview.mjs'];
 const SCENARIO_BUDGET_GZ = 3 * 1024;
 const SCENARIO_FILES = ['plugins/scenario/core.mjs', 'plugins/scenario/scenario.mjs'];
 
+// ai: the agent surface (tool manifest + prompt + validated dispatcher,
+// installed as five instance methods). Same 1.x story as scenario — the
+// manifest/prompt/dispatcher re-export from wickchart/core and move in at
+// the 2.0 cut. Landed at 2.2 KB gz.
+const AI_BUDGET_GZ = 3 * 1024;
+const AI_FILES = ['plugins/ai/core.mjs', 'plugins/ai/ai.mjs'];
+
 // The gzip budgets measure canonical content: CRLF is a checkout artifact
 // (core.autocrlf on Windows), not bytes anyone ships — the registry and CI
 // both normalize to LF, so the test does too before measuring.
@@ -318,5 +325,19 @@ test('wickchart-scenario plugin stays under its (smaller) gzip budget', () => {
   assert.ok(
     total <= SCENARIO_BUDGET_GZ,
     `wickchart-scenario is ${(total / 1024).toFixed(1)} KB gz, budget is ${SCENARIO_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
+  );
+});
+
+test('wickchart-ai plugin stays under its (smaller) gzip budget', () => {
+  let total = 0;
+  const parts = [];
+  for (const f of AI_FILES) {
+    const n = gz(f);
+    total += n;
+    parts.push(`${f}: ${(n / 1024).toFixed(1)} KB gz`);
+  }
+  assert.ok(
+    total <= AI_BUDGET_GZ,
+    `wickchart-ai is ${(total / 1024).toFixed(1)} KB gz, budget is ${AI_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
   );
 });
