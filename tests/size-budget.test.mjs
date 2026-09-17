@@ -96,6 +96,14 @@ const NARRATOR_FILES = ['plugins/narrator/core.mjs', 'plugins/narrator/narrator.
 const COVIEW_BUDGET_GZ = 6 * 1024;
 const COVIEW_FILES = ['plugins/coview/core.mjs', 'plugins/coview/coview.mjs'];
 
+// scenario: planning setters (path/cone projection + R-multiple risk plan)
+// driving the element's state seams. Measures small on purpose during 1.x —
+// core.mjs re-exports the validators/cone math from wickchart/core (shared
+// with the AI window and narrator's scene validation); at the 2.0 cut those
+// functions move in here and the budget grows accordingly. Landed at 2.1 KB.
+const SCENARIO_BUDGET_GZ = 3 * 1024;
+const SCENARIO_FILES = ['plugins/scenario/core.mjs', 'plugins/scenario/scenario.mjs'];
+
 // The gzip budgets measure canonical content: CRLF is a checkout artifact
 // (core.autocrlf on Windows), not bytes anyone ships — the registry and CI
 // both normalize to LF, so the test does too before measuring.
@@ -296,5 +304,19 @@ test('wickchart-coview plugin stays under its (smaller) gzip budget', () => {
   assert.ok(
     total <= COVIEW_BUDGET_GZ,
     `wickchart-coview is ${(total / 1024).toFixed(1)} KB gz, budget is ${COVIEW_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
+  );
+});
+
+test('wickchart-scenario plugin stays under its (smaller) gzip budget', () => {
+  let total = 0;
+  const parts = [];
+  for (const f of SCENARIO_FILES) {
+    const n = gz(f);
+    total += n;
+    parts.push(`${f}: ${(n / 1024).toFixed(1)} KB gz`);
+  }
+  assert.ok(
+    total <= SCENARIO_BUDGET_GZ,
+    `wickchart-scenario is ${(total / 1024).toFixed(1)} KB gz, budget is ${SCENARIO_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
   );
 });
