@@ -117,7 +117,9 @@ Canvas 2D floor is ~1 ms at our scale — revisit only with profiler evidence).
 
 **Next up (suggested):** v1.7.0 is cut (see CHANGELOG.md). What remains
 is polish — i18n + `preset=` (S items) and the dedicated spread pane (M) if
-demand appears — and the 2.0 conversation: the plugin split (~9.6 KB out of
-the core entry) and the removal of the deprecated `hab-*` aliases.
+demand appears — and **[the 2.0 plan](./ROADMAP-V2.md)**: the plugin split
+(~9.6 KB out of the core entry, four new packages) and the removal of the
+deprecated `hab-*` aliases, delivered as "prepare additively on 1.x, cut
+atomically" — see ROADMAP-V2.md for the PR sequence and open decisions.
 
 Each PR lands with the perf gate green (<1 ms default view, <8 ms max zoom-out).
