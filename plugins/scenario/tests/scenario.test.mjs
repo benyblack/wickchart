@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { calcVolCone, normalizeScenario, normalizeRiskPlan } from '../core.mjs';
-// the core copy this package wraps until 2.0 — must stay the same function
+// the shared validators stayed in core; the cone math is owned here
 const wccore = await import('wickchart/core');
 
 const read = (p) => readFileSync(new URL('../../../' + p, import.meta.url), 'utf8');
@@ -151,10 +151,11 @@ test('invalid plans → null; label caps at 40; defaults documented', () => {
 
 /* ------------------------- the 1.x seam ------------------------- */
 
-test('during 1.x the pure surface is the very same function core ships', () => {
+test('the shared validators are still the very functions core ships; the cone math is owned here', () => {
   assert.equal(normalizeScenario, wccore.normalizeScenario);
   assert.equal(normalizeRiskPlan, wccore.normalizeRiskPlan);
-  assert.equal(calcVolCone, wccore.calcVolCone);
+  assert.equal(wccore.calcVolCone, undefined, 'cone math left the core entry at the cut');
+  assert.equal(typeof calcVolCone, 'function', '…and lives in this package now');
 });
 
 test('core.mjs is the documented re-export seam, not a drifted copy', () => {

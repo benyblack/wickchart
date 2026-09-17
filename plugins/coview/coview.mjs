@@ -85,22 +85,50 @@ export class Coview {
     chart._coviewBeat = 0;
     for (const m of INSTALLED) chart[m] = this[m].bind(this);
     chart._wickCoview = this;
-    // the co-view attribute may predate the attach — join the room if set
-    if (chart._coviewName) this._setupCoView();
+    // the presence-band + ghost renderer (moved out of the core entry at
+    // 2.0): one layer drawing through the public api
+    this._layer = { id: 'wick-coview', draw: (api) => this._render(api) };
+    if (typeof chart.addLayer === 'function') chart.addLayer(this._layer);
+    // the co-view attribute is plugin-owned since 2.0: watch it live
+    if (typeof MutationObserver === 'function') {
+      this._observer = new MutationObserver(() => this._setupCoView());
+      this._observer.observe(chart, { attributes: true, attributeFilter: ['co-view'] });
+    }
+    // the attribute may predate the attach — join the room if set
+    if (this._room()) this._setupCoView();
+  }
+
+  /** The room name from the plugin-owned `co-view` attribute. */
+  _room() {
+    const c = this._chart;
+    const v = c && typeof c.getAttribute === 'function' ? c.getAttribute('co-view') : null;
+    return v || null;
   }
 
   detach() {
     const c = this._chart;
     if (!c) return;
+    if (this._observer) {
+      try {
+        this._observer.disconnect();
+      } catch (_) {}
+      this._observer = null;
+    }
+    if (typeof c.removeLayer === 'function') {
+      try {
+        c.removeLayer('wick-coview');
+      } catch (_) {}
+    }
     this._teardown(true);
     for (const m of INSTALLED) {
       try {
         delete c[m];
       } catch (_) {}
     }
-    // hand the renderer back a clean slate (fresh tracker, no ghost)
-    c._presence = new PresenceTracker(this._tracker.ttl);
-    this._tracker = c._presence;
+    // hand the element back a clean slate (no tracker, no ghost)
+    this._tracker = new PresenceTracker(this._tracker.ttl);
+    c._presence = null;
+    this._tracker = null;
     c._ghost = null;
     try {
       delete c._wickCoview;
@@ -121,7 +149,7 @@ export class Coview {
     const c = this._chart;
     if (!c) return;
     this._teardown(false);
-    const name = c._coviewName;
+    const name = this._room();
     if (!name || !c._connected) return;
     if (typeof BroadcastChannel === 'undefined' && !this._injected) return;
     try {
@@ -184,7 +212,11 @@ export class Coview {
     const now = performance.now();
     if (!force && now - this._viewLast < 120) return;
     this._viewLast = now;
-    this._coviewSend(viewMessage(r.from, r.to, this._chart._coviewLabel || null));
+    const label =
+      this._chart && typeof this._chart.getAttribute === 'function'
+        ? this._chart.getAttribute('co-view-name')
+        : null;
+    this._coviewSend(viewMessage(r.from, r.to, label || null));
   }
 
   _coviewSend(msg) {
@@ -250,6 +282,73 @@ export class Coview {
     const c = this._chart;
     if (c && typeof c.dispatchEvent === 'function') {
       c.dispatchEvent(new CustomEvent('wick:' + name, { detail }));
+    }
+  }
+
+  /* ---------------- the renderer (a plugin layer since 2.0) ---------------- */
+
+  /** Peer viewport bands along the top of the plot + the dashed ghost
+   *  crosshair of a peer's pointer — ported from the core renderer. */
+  _render(api) {
+    const c = this._chart;
+    if (!c) return;
+    const { ctx, layout: ly, palette: pal, data: d, timeToX } = api;
+    if (!ly || !d || !d.length) return;
+    const peers = this._tracker ? this._tracker.list().slice(0, 4) : [];
+    if (peers.length) {
+      ctx.save();
+      ctx.font = api.pillFont || '600 11px ui-sans-serif, system-ui, sans-serif';
+      for (let row = 0; row < peers.length; row++) {
+        const p = peers[row];
+        if (!p.range) continue;
+        const cols = pal.overlay || [];
+        const col = cols[(row + 1) % Math.max(cols.length, 1)] || pal.accent;
+        const x0 = timeToX(p.range.from);
+        const x1 = timeToX(p.range.to);
+        if (x0 == null || x1 == null) continue;
+        const y = ly.main.y0 + 2 + row * 5;
+        const cx0 = Math.max(Math.min(x0, x1), 0);
+        const cx1 = Math.min(Math.max(x0, x1), ly.plotRight);
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = col;
+        ctx.fillRect(cx0, y, Math.max(cx1 - cx0, 3), 3);
+        if (cx1 - cx0 > 44) {
+          ctx.globalAlpha = 0.95;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          ctx.fillText(p.name || p.id, cx0 + 3, y + 4);
+        }
+      }
+      ctx.restore();
+    }
+    const g = c._ghost;
+    if (g) {
+      const bar = d[Math.max(0, Math.min(d.length - 1, g.index))];
+      const gx = bar ? timeToX(bar.time) : null;
+      const gxVisible = gx != null && gx >= 0 && gx <= ly.plotRight;
+      ctx.save();
+      ctx.strokeStyle = pal.accent;
+      ctx.globalAlpha = 0.7;
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      if (gxVisible) {
+        const cx = Math.round(gx) + 0.5;
+        ctx.moveTo(cx, 0);
+        ctx.lineTo(cx, ly.main.y0 + ly.main.h);
+      }
+      if (g.yFrac != null) {
+        const gy = Math.round(ly.main.y0 + g.yFrac * ly.main.h) + 0.5;
+        ctx.moveTo(0, gy);
+        ctx.lineTo(ly.plotRight, gy);
+        if (gxVisible) {
+          ctx.fillStyle = pal.accent;
+          ctx.beginPath();
+          ctx.arc(gx, ly.main.y0 + g.yFrac * ly.main.h, 3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.stroke();
+      ctx.restore();
     }
   }
 }

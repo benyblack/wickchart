@@ -72,7 +72,7 @@ test('narrateWindow: volume spikes join the timeline; degenerate ranges return [
   assert.ok(narrateWindow(bars, 0, 199).length <= 60, 'capped at 60 events');
 });
 
-test('narrateWindow is at parity with the core copy (the 2.0 handoff)', () => {
+test('narrateWindow detects on noisy synthetic data (sole owner since the 2.0 cut)', () => {
   // deterministic pseudo-random bars: enough variety to exercise every
   // detector (pivots, spikes, gaps, divergences)
   let seed = 42;
@@ -92,13 +92,17 @@ test('narrateWindow is at parity with the core copy (the 2.0 handoff)', () => {
       volume: rnd() < 0.05 ? 10000 : 50 + rnd() * 100,
     });
   }
-  for (const [i0, i1] of [[0, 399], [50, 250], [0, 0], [120, 119]]) {
-    assert.deepEqual(
-      narrateWindow(bars, i0, i1, { pivot: 6 }),
-      wccore.narrateWindow(bars, i0, i1, { pivot: 6 }),
-      `parity for window [${i0}, ${i1}]`
-    );
+  const types = new Set();
+  for (const [i0, i1] of [[0, 399], [50, 250]]) {
+    const ev = narrateWindow(bars, i0, i1, { pivot: 6 });
+    for (const e of ev) types.add(e.type);
+    assert.ok(ev.length > 0, `events in [${i0}, ${i1}]`);
+    assert.ok(ev.every((e) => Number.isFinite(e.time)), 'every event carries its bar time');
   }
+  assert.ok(types.has('pivothigh') && types.has('pivotlow'), 'pivots detected');
+  assert.ok(types.has('volspike'), 'volume spikes detected');
+  assert.deepEqual(narrateWindow(bars, 0, 0, { pivot: 6 }), [], 'single-bar window is empty');
+  assert.deepEqual(narrateWindow(bars, 120, 119, { pivot: 6 }), [], 'inverted window is empty');
 });
 
 /* ------------------------- scenes ------------------------- */
@@ -115,8 +119,7 @@ test('easeInOutCubic: endpoints exact, symmetric around 0.5, monotonic', () => {
   }
   assert.equal(easeInOutCubic(-5), 0, 'clamped below');
   assert.equal(easeInOutCubic(9), 1, 'clamped above');
-  // bit-for-bit with the core copy
-  for (let i = 0; i <= 40; i++) assert.equal(easeInOutCubic(i / 40), wccore.easeInOutCubic(i / 40));
+ 
 });
 
 test('normalizeScene: sanitizes every field, keeps only valid state', () => {
@@ -170,11 +173,12 @@ test('sceneList: drops junk, caps at 20', () => {
   assert.equal(sceneList({}).length, 0);
   const big = sceneList(Array.from({ length: 40 }, (_, i) => ({ title: 's' + i })));
   assert.equal(big.length, 20);
-  // parity with the core copy on the same input, sentinels included
-  assert.deepEqual(
-    sceneList([{ title: 'a', scenario: null, riskPlan: { entry: 10, stop: 9 } }, 'junk', null]),
-    wccore.sceneList([{ title: 'a', scenario: null, riskPlan: { entry: 10, stop: 9 } }, 'junk', null])
-  );
+  // sentinels included: explicit nulls become 'clear' through the shared
+  // normalizers (still imported from wickchart/core)
+  const sentinels = sceneList([{ title: 'a', scenario: null, riskPlan: { entry: 10, stop: 9 } }, 'junk', null]);
+  assert.equal(sentinels.length, 1);
+  assert.equal(sentinels[0].scenario, 'clear');
+  assert.equal(sentinels[0].riskPlan.risk, 1);
 });
 
 /* ------------------------- sonification pitch ------------------------- */
@@ -190,7 +194,6 @@ test('priceToFreq: linear, log-space, clamped, degenerate', () => {
   assert.equal(priceToFreq(42, { min: 10, max: 10 }), 530, 'flat scale → midpoint');
   for (const sc of [{ min: 0, max: 100 }, { min: 1, max: 4, useLog: true }]) {
     for (const p of [1, 7, 42.5, 99, 1000]) {
-      assert.equal(priceToFreq(p, sc), wccore.priceToFreq(p, sc), `parity at ${p}`);
     }
   }
 });
@@ -208,4 +211,4 @@ test('timeToMs + indexForTime: the same rules the chart applies', () => {
   assert.equal(indexForTime(bars, T(150) + 1), 151, 'between bars rounds up to the next');
   assert.equal(indexForTime(bars, T(199)), 199);
   assert.equal(indexForTime(bars, T(199) + 9999), 199, 'past the end clamps to the last');
-});
+});

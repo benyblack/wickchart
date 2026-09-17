@@ -1,17 +1,22 @@
-import { test } from 'node:test';
+// PR #17 (inverted at 2.0) — the rebrand is complete: the 0.x hab-* names
+// are GONE from the source. During 1.x this file proved the aliases kept
+// working; at the 2.0 cut it flips to proving nothing remains.
+import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import WickChartDefault, { WickChart } from '../src/wick-chart.js';
-import WickFeedDefault, { WickFeed } from '../src/wick-feed.js';
-import { existsSync } from 'node:fs';
+
+const read = (p) => readFileSync(new URL('../' + p, import.meta.url), 'utf8');
+const chartMod = await import('../src/wick-chart.js');
+const feedMod = await import('../src/wick-feed.js');
+const { WickChart } = chartMod;
 
 test('renamed modules export the WickChart/WickFeed classes (SSR-safe import)', () => {
-  assert.equal(typeof WickChartDefault, 'function');
-  assert.equal(WickChartDefault.name, 'WickChart');
-  assert.equal(WickChart, WickChartDefault);
-  assert.equal(typeof WickFeedDefault, 'function');
-  assert.equal(WickFeedDefault.name, 'WickFeed');
-  assert.equal(WickFeed, WickFeedDefault);
+  assert.equal(typeof chartMod.default, 'function');
+  assert.equal(chartMod.default.name, 'WickChart');
+  assert.equal(WickChart, chartMod.default);
+  assert.equal(typeof feedMod.default, 'function');
+  assert.equal(feedMod.default.name, 'WickFeed');
+  assert.equal(feedMod.WickFeed, feedMod.default);
 });
 
 test('indicator registry is module-scoped and shared', () => {
@@ -21,51 +26,33 @@ test('indicator registry is module-scoped and shared', () => {
     compute: (bars) => bars.map((b) => b.close),
   });
   assert.ok(WickChart._registry().get('rebrandtest'));
-  // a subclass (the deprecated <hab-chart> alias) sees the same registry
-  class Alias extends WickChart {}
-  assert.ok(Alias._registry().get('rebrandtest'));
+  class Sub extends WickChart {}
+  assert.ok(Sub._registry().get('rebrandtest'));
   WickChart._registry().delete('rebrandtest');
-  assert.equal(Alias._registry().get('rebrandtest'), undefined);
+  assert.equal(Sub._registry().get('rebrandtest'), undefined);
 });
 
-test('package manifest points at the renamed files', () => {
-  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-  // Rebrand shipped in 1.0.0; the manifest must never regress below it.
-  assert.match(pkg.version, /^\d+\.\d+\.\d+$/);
-  const [major, minor] = pkg.version.split('.').map(Number);
-  assert.ok(major > 1 || (major === 1 && minor >= 0), 'version >= 1.0.0');
-  assert.equal(pkg.main, 'src/wick-chart.js');
-  assert.ok(existsSync(new URL('../' + pkg.main, import.meta.url)));
-  for (const sub of ['.', './core', './feed']) {
-    const e = pkg.exports[sub];
-    assert.ok(e, `exports[${sub}] present`);
-    assert.ok(existsSync(new URL('../' + e.default.replace('./', ''), import.meta.url)), `${e.default} exists`);
-    assert.match(e.types, /\.d\.ts$/);
+test('no hab- alias remains anywhere in src/ (the 2.0 cut)', () => {
+  for (const f of ['src/core.js', 'src/wick-chart.js', 'src/wick-feed.js', 'src/report.js', 'src/worker.js', 'src/worker-core.js']) {
+    const src = read(f);
+    assert.ok(!src.includes('hab-'), `${f} still references a hab- alias`);
+    assert.ok(!src.includes("'hab:"), `${f} still dispatches hab: events`);
+    assert.ok(!src.includes('"hab:'), `${f} still dispatches hab: events`);
+    assert.ok(!src.includes('HabChart') && !src.includes('HabFeed'), `${f} still defines an alias class`);
   }
-  assert.equal(pkg.exports['.'].default, './src/wick-chart.js');
-  assert.equal(pkg.exports['./feed'].default, './src/wick-feed.js');
-  assert.equal(pkg.exports['.'].types, './types/wick-chart.d.ts');
-  assert.equal(pkg.exports['./feed'].types, './types/wick-feed.d.ts');
 });
 
-test('source declares the new tags with the 0.x aliases', async () => {
-  const src = readFileSync(new URL('../src/wick-chart.js', import.meta.url), 'utf8');
-  assert.match(src, /define\('wick-chart', WickChart\)/);
-  assert.match(src, /define\('hab-chart'/); // deprecated alias retained
-  const feedSrc = readFileSync(new URL('../src/wick-feed.js', import.meta.url), 'utf8');
-  assert.match(feedSrc, /define\('wick-feed', WickFeed\)/);
-  assert.match(feedSrc, /define\('hab-feed'/);
-  assert.match(feedSrc, /querySelector\('wick-chart'\) \|\| document\.querySelector\('hab-chart'\)/);
-  // canonical events fire, legacy aliases dispatched alongside
-  assert.match(src, /'wick:' \+ name/);
-  assert.match(src, /'hab:' \+ name/);
+test('the stylesheet themes with --wick-* only', () => {
+  const src = read('src/wick-chart.js');
+  assert.ok(src.includes('var(--wick-'), 'canonical vars present');
+  assert.ok(!src.includes('--hab-'), 'no --hab-* fallbacks remain');
 });
 
-test('CSS variables resolve --wick-* first with --hab-* fallback', () => {
-  const src = readFileSync(new URL('../src/wick-chart.js', import.meta.url), 'utf8');
-  // wick wins outright; the hab read happens only as the fallback (and
-  // warns once — pr75). The static stylesheet keeps the same chain.
-  assert.match(src, /const v = cs\.getPropertyValue\('--wick-' \+ name\)\.trim\(\);\s*\r?\n\s*if \(v\) return v;/);
-  assert.match(src, /const h = cs\.getPropertyValue\('--hab-' \+ name\)\.trim\(\);\s*\r?\n\s*if \(h\) warnDeprecatedAlias/);
-  assert.match(src, /var\(--wick-accent, var\(--hab-accent, #4c8dff\)\)/);
+test('only the wick-chart / wick-feed elements register', () => {
+  const chart = read('src/wick-chart.js');
+  const feed = read('src/wick-feed.js');
+  assert.match(chart, /customElements\.define\('wick-chart', WickChart\)/);
+  assert.doesNotMatch(chart, /customElements\.define\('hab-chart'/);
+  assert.match(feed, /customElements\.define\('wick-feed', WickFeed\)/);
+  assert.doesNotMatch(feed, /customElements\.define\('hab-feed'/);
 });

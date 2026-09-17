@@ -15,8 +15,6 @@ import {
   crossMessage,
   indexForTime,
 } from '../core.mjs';
-// the core copy this replaces at 2.0 — parity is the drift guard
-const wccore = await import('wickchart/core');
 
 const read = (p) => readFileSync(new URL('../../../' + p, import.meta.url), 'utf8');
 
@@ -64,26 +62,6 @@ test('tracker: drop returns the removed entry; list is oldest-first', () => {
   const gone = t.drop('old');
   assert.equal(gone.id, 'old');
   assert.equal(t.drop('ghost'), null);
-});
-
-test('tracker is at parity with the core copy (the 2.0 handoff)', () => {
-  const ops = [
-    ['track', 'p1', { range: { from: 100, to: 50 }, name: 'maya'.repeat(10) }, 0],
-    ['track', 'p1', { range: { from: NaN, to: 1 }, name: null }, 100],
-    ['track', 'p2', { range: { from: 5, to: 5 } }, 200],
-    ['track', 'p3', {}, 250],
-    ['sweep', 13000],
-    ['drop', 'p2'],
-    ['list'],
-  ];
-  const run = (T) => {
-    const t = new T(12000);
-    return ops.map(([op, ...a]) => {
-      const r = t[op](...a);
-      return op === 'list' ? r : String(r);
-    }).concat([JSON.stringify(t.list())]);
-  };
-  assert.deepEqual(run(PresenceTracker), run(wccore.PresenceTracker));
 });
 
 /* ------------------------- protocol envelope ------------------------- */

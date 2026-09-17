@@ -125,18 +125,19 @@ test('detach restores the element methods and leaves chart state alone', () => {
 
 /* ------------------------- component contract ------------------------- */
 
-test('the plugin writes the documented seams and renders through the element', () => {
+test('the plugin draws through a public layer and writes the state seams', () => {
   const src = read('plugins/scenario/scenario.mjs');
   assert.match(src, /c\._scenario = normalizeScenario\(spec\)/, 'state on the seam');
   assert.match(src, /c\._riskPlan = normalizeRiskPlan\(spec\)/);
+  assert.match(src, /addLayer\(this\._layer\)/, 'rendering moved into the plugin as a layer at the cut');
+  assert.match(src, /id: 'wick-scenario'/);
   assert.ok(!src.includes('WickChart.prototype'), 'the prototype is never touched');
-  assert.ok(!src.includes('ctx.'), 'no private drawing — the element renders scenario/risk');
   // and the future-space reservation the renderer depends on stays core's
   const chartSrc = read('src/wick-chart.js');
   assert.match(
     chartSrc,
     /_scenario \? Math\.max\(base, this\._scenario\.horizon \+ 3\) : base/,
-    'right margin extends by the scenario horizon (the seam the plan flagged)'
+    'right margin extends by the scenario horizon (the documented seam)'
   );
 });
 
