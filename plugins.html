@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WickChart — Plugins</title>
-  <meta name="description" content="The wickchart plugin family: drawings, sessions, replay, compare, navigator, alerts+, layouts, signals, tape, grid, paper and narrator — each a zero-dependency opt-in package, documented with a live playground." />
+  <meta name="description" content="The wickchart plugin family: drawings, sessions, replay, compare, navigator, alerts+, layouts, signals, tape, grid, paper, narrator, coview and scenario — each a zero-dependency opt-in package, documented with a live playground." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -201,12 +201,13 @@
         <li><a href="#paper">paper — paper trading<span class="pkg">paper</span></a></li>
         <li><a href="#narrator">narrator — guided playback<span class="pkg">narrator</span></a></li>
         <li><a href="#coview">coview — co-viewing<span class="pkg">coview</span></a></li>
+        <li><a href="#scenario">scenario — planning<span class="pkg">scenario</span></a></li>
       </ul>
     </aside>
 
     <main>
       <section id="start">
-        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">13 packages</span></h2>
+        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">14 packages</span></h2>
         <p>Everything here is an <b>opt-in package</b>, not core bytes: each plugin is a separate npm package, zero dependencies, built only on wickchart's public <a href="./docs.html#plugins">layer API</a> and kept small by its own CI gzip budget. The core chart stays lean — you pay bytes only for what you attach, and everything detaches cleanly.</p>
         <p>Every plugin follows the same shape: <code>attach</code> → configure → <code>detach</code>. Install any of them next to the chart:</p>
         <div class="codewrap"><pre class="code"><span class="tag">npm</span> install wickchart wickchart-sessions   <span class="cmt">// …or wickchart-draw, wickchart-tape, …</span>
@@ -228,6 +229,7 @@
           <tr><td><a href="#tape">wickchart-tape</a></td><td>time &amp; sales — live prints docked below the chart, trades→bars</td><td>4.6 KB</td><td>≥ 1.6</td></tr>
           <tr><td><a href="#narrator">wickchart-narrator</a></td><td>guided playback — narrated timeline, bar-walk, sonification, story tours</td><td>8.6 KB</td><td>≥ 1.4</td></tr>
           <tr><td><a href="#coview">wickchart-coview</a></td><td>cross-tab co-viewing — presence bands, shared crosshair, open protocol</td><td>5.0 KB</td><td>≥ 1.4</td></tr>
+          <tr><td><a href="#scenario">wickchart-scenario</a></td><td>planning — σ-cone projections, ghost paths, R-multiple risk plans</td><td>2.1 KB</td><td>≥ 1.4</td></tr>
         </table>
         <div class="note"><b>Dock note:</b> the navigator and the tape both dock through the 1.6 <code>insetBottom</code> hook and share the single strip at the bottom of the canvas — attach one or the other. Every playground below is live: click around.</div>
       </section>
@@ -574,6 +576,34 @@ coview.<span class="attr">detach</span>();
         </div>
         <div class="note">Peer: <b>wickchart ≥ 1.4</b>. Self-contained — imports nothing from wickchart. Works across tabs of the same browser (BroadcastChannel); rooms are per-origin. Part of the <a href="https://github.com/benyblack/wickchart/blob/main/ROADMAP-V2.md">2.0 plan</a>.</div>
       </section>
+
+      <section id="scenario">
+        <h2>wickchart-scenario <a class="anchor" href="#scenario">#</a> <span class="size">2.1 KB gz</span></h2>
+        <p>Planning surfaces drawn straight onto the chart. <b>Scenario projections</b>: a ghost path of future prices plus σ-bands — a volatility cone widening with √h from realized volatility — with future space reserved on the right so the projection stays visible. <b>Risk plans</b>: an R-multiple grid anchored at entry/stop (1R = |entry − stop|, direction derived), reward lines at kR with risk/reward zones shaded, so sizing and take-profit choices read directly off the chart.</p>
+        <div class="codewrap"><pre class="code"><span class="tag">import</span> { attachScenario } <span class="tag">from</span> <span class="str">'wickchart-scenario'</span>;
+
+<span class="tag">const</span> scenario = <span class="attr">attachScenario</span>(chart);   <span class="cmt">// methods land on the instance</span>
+chart.<span class="attr">setScenario</span>({ <span class="attr">path</span>: [<span class="str">64000</span>, <span class="str">65500</span>, <span class="str">68000</span>], <span class="attr">label</span>: <span class="str">'bull case'</span> });
+chart.<span class="attr">setScenario</span>({ <span class="attr">horizon</span>: <span class="str">48</span> });              <span class="cmt">// cone-only projection</span>
+chart.<span class="attr">scenario</span>;                                <span class="cmt">// a copy of the active one</span>
+chart.<span class="attr">setRiskPlan</span>({ <span class="attr">entry</span>: <span class="str">64500</span>, <span class="attr">stop</span>: <span class="str">63800</span>, <span class="attr">multiples</span>: [<span class="str">1</span>, <span class="str">2</span>, <span class="str">3</span>] });
+chart.<span class="attr">setRiskPlan</span>({ <span class="attr">entry</span>: <span class="str">64500</span>, <span class="attr">stop</span>: <span class="str">63800</span>, <span class="attr">targets</span>: [<span class="str">65900</span>, <span class="str">67300</span>] }); <span class="cmt">// prices → kR</span>
+chart.<span class="attr">riskPlan</span>;                                 <span class="cmt">// { entry, stop, risk, direction, levels }</span>
+chart.<span class="attr">clearScenario</span>(); chart.<span class="attr">clearRiskPlan</span>();
+scenario.<span class="attr">detach</span>();</pre></div>
+        <p>Invalid specs are dropped, never thrown — and <b>clear</b> what was there before (replace semantics). Both are analysis data, excluded from <code>getState()</code>. The pure surface (validators, the √h cone math, realized volatility) is a separate import: <code>wickchart-scenario/core</code>. Third package of the 2.0 split — the smallest attach layer of the family: four setters writing the state seams the element's renderer, cone cache and future-space reservation already read.</p>
+        <div class="demo-card">
+          <div class="demo-head">
+            <span class="t">Playground</span><span class="spacer"></span>
+            <span id="sc-btns"></span><span class="spacer"></span>
+            <span id="sc-risk-btns"></span>
+          </div>
+          <wick-feed for="ex-sc" demo="BTC" tf="1h" limit="400"></wick-feed>
+          <wick-chart id="ex-sc" label="BTC · 1h · scenario"></wick-chart>
+          <div class="foot" id="sc-foot">project a path or a σ-cone into the future space; the risk plan anchors at the last close — combine both</div>
+        </div>
+        <div class="note">Peer: <b>wickchart ≥ 1.4</b>, imports the shared validators/cone math from <code>wickchart/core</code> (CDN users: import map). Part of the <a href="https://github.com/benyblack/wickchart/blob/main/ROADMAP-V2.md">2.0 plan</a>.</div>
+      </section>
     </main>
   </div>
 
@@ -591,6 +621,7 @@ coview.<span class="attr">detach</span>();
     import { attachPaper } from './plugins/paper/paper.mjs';
     import { attachNarrator } from './plugins/narrator/narrator.mjs';
     import { attachCoview } from './plugins/coview/coview.mjs';
+    import { attachScenario } from './plugins/scenario/scenario.mjs';
 
     const $ = (id) => document.getElementById(id);
 
@@ -1102,6 +1133,59 @@ coview.<span class="attr">detach</span>();
       };
       mkBtn($('cv-btns'), 'Pair', 'both charts join one room', pair);
       mkBtn($('cv-btns'), 'Detach', 'goodbye and leave the room', off);
+    }
+
+    /* ---------- scenario ---------- */
+    {
+      const c = $('ex-sc');
+      const foot = $('sc-foot');
+      let plan = null;
+      const ensure = () => {
+        if (plan) return plan;
+        plan = attachScenario(c);
+        return plan;
+      };
+      const lastClose = () => {
+        const d = c.data;
+        return d && d.length ? d[d.length - 1].close : 100;
+      };
+      mkBtn($('sc-btns'), 'Bull path', 'a ghost path stepping up from the last close', () => {
+        ensure();
+        const p0 = lastClose();
+        c.setScenario({
+          path: [p0 * 1.02, p0 * 1.045, p0 * 1.07, p0 * 1.11],
+          label: 'bull case',
+          color: 'up',
+        });
+        foot.textContent = 'ghost path + σ-cone — future space is reserved on the right';
+      });
+      mkBtn($('sc-btns'), 'Cone only', '±1σ/±2σ bands from realized volatility, horizon 48', () => {
+        ensure();
+        c.setScenario({ horizon: 48 });
+        foot.textContent = 'cone-only projection — bands widen with √h from realized vol';
+      });
+      mkBtn($('sc-btns'), 'Clear', 'remove the projection', () => {
+        if (!plan) return;
+        c.clearScenario();
+        foot.textContent = 'projection cleared — the right margin returns to normal';
+      });
+      mkBtn($('sc-risk-btns'), 'Plan 1:3', 'long from the last close, stop −3%, rewards at 1–3R', () => {
+        ensure();
+        const p0 = lastClose();
+        c.setRiskPlan({ entry: p0, stop: p0 * 0.97, multiples: [1, 2, 3], label: 'breakout' });
+        foot.textContent = 'risk plan — red risk zone to the stop, green rewards at kR, pills label each level';
+      });
+      mkBtn($('sc-risk-btns'), 'Targets', 'explicit price targets convert to their R multiple', () => {
+        ensure();
+        const p0 = lastClose();
+        c.setRiskPlan({ entry: p0, stop: p0 * 0.97, targets: [p0 * 1.06, p0 * 1.12] });
+        foot.textContent = 'targets → kR conversion — try combining with a bull path';
+      });
+      mkBtn($('sc-risk-btns'), 'Clear plan', 'remove the risk grid', () => {
+        if (!plan) return;
+        c.clearRiskPlan();
+        foot.textContent = 'risk plan cleared';
+      });
     }
   </script>
 </body>

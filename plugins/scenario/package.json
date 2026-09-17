@@ -1,0 +1,33 @@
+{
+  "name": "wickchart-scenario",
+  "version": "0.1.0",
+  "description": "Scenario planning for wickchart — ghost paths of future prices with σ-volatility cones widening with √h, plus R-multiple risk plans (entry/stop anchor, kR reward lines, risk/reward shading). Opt-in plugin, zero dependencies beyond wickchart's pure core.",
+  "type": "module",
+  "main": "scenario.mjs",
+  "module": "scenario.mjs",
+  "exports": {
+    ".": "./scenario.mjs",
+    "./core": "./core.mjs"
+  },
+  "files": [
+    "scenario.mjs",
+    "core.mjs",
+    "README.md"
+  ],
+  "keywords": [
+    "chart",
+    "charting",
+    "scenario",
+    "forecasting",
+    "volatility-cone",
+    "risk-management",
+    "r-multiple",
+    "position-sizing",
+    "trading",
+    "wickchart"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "wickchart": ">=1.4.0"
+  }
+}
