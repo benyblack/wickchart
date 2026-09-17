@@ -1,0 +1,33 @@
+{
+  "name": "wickchart-narrator",
+  "version": "0.1.0",
+  "description": "Guided playback for wickchart — the bar-walk narrator (pivots, spikes, gaps, legs as a timeline), the walk player, ear-based sonification and story mode (capture chart state as scenes, replay as a narrated tour). Opt-in plugin, zero dependencies beyond wickchart's pure core.",
+  "type": "module",
+  "main": "narrator.mjs",
+  "module": "narrator.mjs",
+  "exports": {
+    ".": "./narrator.mjs",
+    "./core": "./core.mjs"
+  },
+  "files": [
+    "narrator.mjs",
+    "core.mjs",
+    "README.md"
+  ],
+  "keywords": [
+    "chart",
+    "charting",
+    "narrator",
+    "sonification",
+    "accessibility",
+    "story",
+    "guided-tour",
+    "walkthrough",
+    "trading",
+    "wickchart"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "wickchart": ">=1.4.0"
+  }
+}
