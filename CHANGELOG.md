@@ -26,6 +26,22 @@ its own commit with the why.
 
 ---
 
+## 2.0.1 — 2026-09-18
+
+A one-line correctness fix for transparent themes. `_render()` cleared the
+canvas by filling it with the theme background — the only clear — so a
+`--wick-bg: transparent` chart never cleared at all: every redraw (toggle,
+pan, streamed tick, crosshair move) stacked on the previous frame's pixels,
+accumulating into ghost candles and smeared axis labels. First observed in
+the wild on tick.market's coin pages after they themed the chart with a
+transparent background over a card. `_render()` now `clearRect()`s before
+painting the background, which makes `--wick-bg: transparent` a fully
+supported theme; opaque backgrounds are unaffected (clear + fill repaints
+exactly what the fill painted before).
+
+- `e2e/transparent-bg.spec.mjs` pins the contract on a real canvas: pixels
+  inked by one frame must not survive a redraw (fails on 2.0.0, passes here).
+
 ## 1.7.1 — 2026-09-17
 
 A deprecation release on the road to 2.0: every 0.x `hab-*` alias now warns
