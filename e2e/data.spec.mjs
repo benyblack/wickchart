@@ -56,6 +56,38 @@ test.describe('data ingestion', () => {
     await expectCanvasChanged(page);
   });
 
+  // PR #77 — the axis width is measured from the formatted last close, so
+  // ticks flipping the grouping boundary used to flip plotRight (and with
+  // it every candle) a few px at a time: the "shaking" live chart.
+  test('rapid ticks never wobble the price axis', async ({ page }) => {
+    await openFixture(page, '?empty');
+    const widths = await page.evaluate(async () => {
+      const t0 = Date.UTC(2024, 0, 2);
+      const bars = [];
+      for (let i = 0; i < 80; i++) {
+        const c = 989 + (i % 5) * 0.1;
+        bars.push({ time: t0 + i * 60_000, open: c, high: c + 0.4, low: c - 0.4, close: c, volume: 1 });
+      }
+      window.chart.setData(bars);
+      await window.settle();
+      // "999.99" (6 chars) vs "1,000.01" (8 chars with the group comma) —
+      // a width jump in any font. The last close flaps across it, the way a
+      // high-frequency pair hovers around a round number.
+      const out = [];
+      const last = () => window.chart.data.at(-1);
+      for (let k = 0; k < 20; k++) {
+        const close = k % 2 ? 999.99 : 1000.01;
+        window.chart.update({ ...last(), close });
+        await window.settle();
+        out.push(window.layout().priceW);
+      }
+      return out;
+    });
+    // Grow to the wide width once, then hold it for the whole flap — one
+    // distinct value ever. (Before the fix: alternated on every tick.)
+    expect(new Set(widths).size).toBe(1);
+  });
+
   test('a newer candle appends and the chart follows it', async ({ page }) => {
     await openFixture(page);
     const before = await visibleRange(page);
