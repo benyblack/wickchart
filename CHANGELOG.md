@@ -26,7 +26,12 @@ its own commit with the why.
 
 ---
 
-## Unreleased
+## 2.0.2 — 2026-09-18
+
+The axis settles. **npm goes 2.0.0 → 2.0.2**: the 2.0.1 transparent-theme
+fix below was versioned on `main` but never tagged or published, so this
+release carries it to the registry for the first time alongside the fix
+below.
 
 - **Fix — the live chart no longer shakes on high-frequency feeds.** The
   price-axis width was re-measured from the formatted *last close* every
