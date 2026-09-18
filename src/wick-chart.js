@@ -1879,6 +1879,10 @@ class WickChart extends HTMLElementBase {
       });
 
       /* background */
+      // Clear explicitly: the fill below is also the only clear, and with
+      // --wick-bg: transparent it paints nothing — without this every redraw
+      // stacks on the previous frame's pixels.
+      ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = pal.bg;
       ctx.fillRect(0, 0, W, H);
       this._nodata.hidden = d.length > 0;
