@@ -1,4 +1,4 @@
-// PR #77 — stable price-axis width under live ticks. The axis width is
+// PR #78 — stable price-axis width under live ticks. The axis width is
 // measured from the formatted last close, and digits in a proportional
 // font measure differently ("1" narrower than "8"), so a high-frequency
 // feed flipped the ceil() back and forth a pixel at a time — and since

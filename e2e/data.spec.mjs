@@ -56,7 +56,7 @@ test.describe('data ingestion', () => {
     await expectCanvasChanged(page);
   });
 
-  // PR #77 — the axis width is measured from the formatted last close, so
+  // PR #78 — the axis width is measured from the formatted last close, so
   // ticks flipping the grouping boundary used to flip plotRight (and with
   // it every candle) a few px at a time: the "shaking" live chart.
   test('rapid ticks never wobble the price axis', async ({ page }) => {
