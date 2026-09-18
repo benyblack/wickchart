@@ -238,6 +238,8 @@ class WickChart extends HTMLElementBase {
       this._hover = null; // { index, x, y }
       this._dt = HOUR; // median bar interval (ms)
       this._ly = null; // last layout
+      this._priceW = null; // settled price-axis width (see _axisWidth)
+      this._pwNarrow = null; // pending axis shrink { want, t }
       this._cache = { v: -1, map: {} };
       this._pal = null; // palette cache
       this._palKey = '';
@@ -624,6 +626,9 @@ class WickChart extends HTMLElementBase {
       this._version++;
       this._epoch++;
       this._computeDt();
+      // a replacement dataset is a new instrument regime — re-measure the
+      // axis from its own prices instead of debouncing down from the old one
+      this._priceW = this._pwNarrow = null;
       // history is not a live signal: re-baseline so close-mode alerts only
       // fire on candles that close from here on
       this._syncClosedIdx();
@@ -685,6 +690,7 @@ class WickChart extends HTMLElementBase {
       this._data = [];
       this._version++;
       this._epoch++;
+      this._priceW = this._pwNarrow = null;
       this._syncClosedIdx();
       this._hover = null;
       this._needsFit = true;
@@ -1310,6 +1316,32 @@ class WickChart extends HTMLElementBase {
       this._raf = requestAnimationFrame(() => this._render());
     }
 
+    /**
+     * Price-axis width with tick-noise immunity. The width is measured from
+     * the live last close, and digits in a proportional font measure
+     * differently ("1" is narrower than "8") — so on every tick the ceil()
+     * can flip a pixel, dragging the axis separator and with it every candle
+     * sideways (visibly shaking on high-frequency pairs). Grow at once so a
+     * wider label never clips; adopt a narrower width only after it has held
+     * for 750ms, and only when it's a real change (≥2px) rather than
+     * digit-width noise, so a flapping price can never wobble the layout.
+     */
+    _axisWidth(want) {
+      const prev = this._priceW;
+      if (prev == null || want >= prev) {
+        this._priceW = want;
+        this._pwNarrow = null;
+      } else if (want <= prev - 2) {
+        if (this._pwNarrow == null || this._pwNarrow.want !== want) {
+          this._pwNarrow = { want, t: performance.now() };
+        } else if (performance.now() - this._pwNarrow.t >= 750) {
+          this._priceW = want;
+          this._pwNarrow = null;
+        }
+      }
+      return this._priceW;
+    }
+
     _prec(v) {
       return this._precision != null ? this._precision : autoPrecision(v);
     }
@@ -1839,14 +1871,16 @@ class WickChart extends HTMLElementBase {
         const sample = d.length ? d[d.length - 1].close : 0;
         const p = this._prec(sample || 1);
         const f = numberFmt(p);
-        priceW = Math.max(
-          52,
-          Math.ceil(
-            Math.max(
-              measure(f.format(sample || 1000)),
-              measure(fmtCompact(1234567))
-            )
-          ) + 16
+        priceW = this._axisWidth(
+          Math.max(
+            52,
+            Math.ceil(
+              Math.max(
+                measure(f.format(sample || 1000)),
+                measure(fmtCompact(1234567))
+              )
+            ) + 16
+          )
         );
       }
       const timeH = 26;

@@ -26,6 +26,20 @@ its own commit with the why.
 
 ---
 
+## Unreleased
+
+- **Fix — the live chart no longer shakes on high-frequency feeds.** The
+  price-axis width was re-measured from the formatted *last close* every
+  render, and digits in a proportional font measure differently ("1" is
+  narrower than "8"), so each tick flipped the `ceil()` a pixel at a time.
+  Since every candle anchors at `plotRight = W − priceW`, the axis separator
+  and the whole candle field slid a pixel sideways per tick — visibly
+  shaking on pairs that tick many times a second. The width now grows
+  immediately (a wider label must never clip), ignores sub-2px
+  digit-width noise, and adopts a genuinely narrower width only after it
+  has held for 750ms; `setData`/`clearData` re-measure from scratch so a
+  symbol switch snaps to its own axis.
+
 ## 2.0.1 — 2026-09-18
 
 A one-line correctness fix for transparent themes. `_render()` cleared the
