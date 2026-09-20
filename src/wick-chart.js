@@ -68,7 +68,33 @@ const HTMLElementBase = typeof HTMLElement !== 'undefined' ? HTMLElement : class
 
 class WickChart extends HTMLElementBase {
     static get observedAttributes() {
-      return ['theme', 'type', 'log', 'auto', 'indicators', 'precision', 'label', 'stats', 'profile', 'annotations', 'volshading', 'overlays', 'brush', 'alert-evaluate', 'timezone', 'vwap-anchor', 'worker'];
+      return ['theme', 'type', 'log', 'auto', 'indicators', 'precision', 'label', 'stats', 'profile', 'annotations', 'volshading', 'overlays', 'brush', 'alert-evaluate', 'timezone', 'vwap-anchor', 'worker', 'lang', 'preset'];
+    }
+
+    /**
+     * Built-in UI strings per language (`lang` attribute selects a pack;
+     * unknown codes fall back to English). Hosts add their own via
+     * `WickChart.registerStrings('fr', {...})` — numbers and dates are
+     * already formatted by the viewer's locale through Intl.
+     */
+    static STRINGS = {
+      en: {
+        noData: 'No data', chart: 'Chart', last: 'last', percent: 'percent',
+        bars: 'bars', ret: 'ret', maxDD: 'maxDD', annVol: 'ann.vol',
+        up: 'up', dn: 'dn', vol: 'vol',
+      },
+      de: {
+        noData: 'Keine Daten', chart: 'Diagramm', last: 'letzter', percent: 'Prozent',
+        bars: 'Kerzen', ret: 'Rend.', maxDD: 'MaxDD', annVol: 'Vol.p.a.',
+        up: 'auf', dn: 'ab', vol: 'Vol',
+      },
+    };
+
+    /** Merge a host string pack into a language (creates it if new). */
+    static registerStrings(lang, pack) {
+      if (typeof lang !== 'string' || !lang || !pack || typeof pack !== 'object') return;
+      const base = WickChart.STRINGS[lang] || WickChart.STRINGS.en;
+      WickChart.STRINGS[lang] = { ...base, ...pack };
     }
 
     /**
@@ -272,6 +298,10 @@ class WickChart extends HTMLElementBase {
       this._annoKey = '';
       this._annoList = null;
       this._volshade = null;
+      this._lang = 'en';
+      this._strings = WickChart.STRINGS.en;
+      this._preset = null;
+      this._nodata.textContent = this._strings.noData;
 
       // co-view seams (2.0: driven by the wickchart-coview plugin — the
       // layer/state contract its presence bands and ghost crosshair use,
@@ -490,6 +520,20 @@ class WickChart extends HTMLElementBase {
           this._workerOn = val != null && val !== 'false';
           this._invalidate();
           break;
+        case 'lang': {
+          this._lang = (val || 'en').toLowerCase();
+          this._strings = WickChart.STRINGS[this._lang] || WickChart.STRINGS.en;
+          this._nodata.textContent = this._strings.noData;
+          this._statsKey = '';
+          this._updateAria();
+          this._invalidate();
+          break;
+        }
+        case 'preset':
+          this._preset = val;
+          this._applyPreset();
+          this._invalidate();
+          break;
         case 'stats':
           this._stats = val != null && val !== 'false';
           this._statsKey = '';
@@ -547,6 +591,29 @@ class WickChart extends HTMLElementBase {
           break;
       }
       this._invalidate();
+    }
+
+    /**
+     * `preset="minimal|pro"` — a starting point for the chrome, never an
+     * override: explicit attributes keep their word. minimal hides the
+     * legend, stats and volume pane (just the series); pro turns the stats
+     * chip and volume pane on for a dense trading view.
+     */
+    _applyPreset() {
+      const p = this._preset;
+      if (p !== 'minimal' && p !== 'pro') {
+        this._legend.style.display = '';
+        return;
+      }
+      const pro = p === 'pro';
+      if (!this.hasAttribute('stats')) {
+        this._stats = pro;
+        this._statsKey = '';
+      }
+      if (!this.hasAttribute('indicators')) {
+        this._ind = { overlays: [], panes: [], volume: pro };
+      }
+      this._legend.style.display = pro ? '' : 'none';
     }
 
     /* ------------------------------------------------------------ *
@@ -1325,14 +1392,16 @@ class WickChart extends HTMLElementBase {
       const d = this._data;
       const last = d[d.length - 1];
       const prev = d[d.length - 2];
+      const S = this._strings;
+      const name = this._label || S.chart;
       if (!last) {
-        this._canvas.setAttribute('aria-label', (this._label || 'Chart') + ': no data');
+        this._canvas.setAttribute('aria-label', name + ': ' + S.noData.toLowerCase());
         return;
       }
       const pct = prev ? ((last.close - prev.close) / prev.close) * 100 : 0;
       this._canvas.setAttribute(
         'aria-label',
-        `${this._label || 'Chart'}: last ${numberFmt(this._prec(last.close)).format(last.close)}, ${pct >= 0 ? '+' : ''}${pct.toFixed(2)} percent, ${d.length} bars`
+        `${name}: ${S.last} ${numberFmt(this._prec(last.close)).format(last.close)}, ${pct >= 0 ? '+' : ''}${pct.toFixed(2)} ${S.percent}, ${d.length} ${S.bars}`
       );
     }
 
@@ -2818,7 +2887,7 @@ class WickChart extends HTMLElementBase {
         const dPct = m.pA ? (dP / m.pA) * 100 : 0;
         const label =
           `${dP >= 0 ? '+' : ''}${f.format(dP)} (${dPct >= 0 ? '+' : ''}${dPct.toFixed(2)}%)` +
-          ` · ${barsN} bars` +
+          ` · ${barsN} ${this._strings.bars}` +
           ` · ${hrs >= 24 ? Math.floor(hrs / 24) + 'd ' + (hrs % 24) + 'h' : hrs + 'h'}`;
         ctx.font = pillFont();
         const tw = ctx.measureText(label).width + 14;
@@ -2885,12 +2954,13 @@ class WickChart extends HTMLElementBase {
           this._statsKey = skey;
           if (st) {
             const pct = (v, dgt = 2) => `${v >= 0 ? '+' : ''}${v.toFixed(dgt)}%`;
+            const S = this._strings;
             this._statsRow.innerHTML =
               `<span><b>${pct(st.changePct)}</b></span>` +
-              `<span>maxDD ${st.maxDDPct.toFixed(1)}%</span>` +
-              `<span>ann.vol ${st.annVolPct.toFixed(0)}%</span>` +
-              `<span>up ${st.up} / dn ${st.dn}</span>` +
-              `<span>vol ${fmtCompact(st.avgVolume)}</span>`;
+              `<span>${S.maxDD} ${st.maxDDPct.toFixed(1)}%</span>` +
+              `<span>${S.annVol} ${st.annVolPct.toFixed(0)}%</span>` +
+              `<span>${S.up} ${st.up} / ${S.dn} ${st.dn}</span>` +
+              `<span>${S.vol} ${fmtCompact(st.avgVolume)}</span>`;
           } else {
             this._statsRow.innerHTML = '';
           }

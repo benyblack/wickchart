@@ -205,6 +205,7 @@
         <li><a href="#data">Data &amp; streaming</a></li>
         <li><a href="#types">Series types</a></li>
         <li><a href="#attributes">Attributes</a></li>
+        <li><a href="#i18n">i18n &amp; presets<span class="new-pill">NEW</span></a></li>
         <li><a href="#indicators">Indicators</a></li>
         <li><a href="#wickscript">WickScript expressions</a></li>
         <li><a href="#volshading">Volatility shading</a></li>
@@ -344,8 +345,31 @@ chart.<span class="attr">data</span>;             <span class="cmt">// getter �
           <tr><td><code>alert-evaluate</code></td><td><code>live</code></td><td>Default alert evaluation: <code>live</code> (every tick) or <code>close</code> (final candles only) — <a href="#alert-evaluate">details</a></td></tr>
           <tr><td><code>timezone</code></td><td><code>local</code></td><td>Display zone for axis labels &amp; the crosshair: <code>local</code>, <code>utc</code>, or an IANA name — <a href="#timezone">details</a></td></tr>
           <tr><td><code>vwap-anchor</code></td><td><code>utc</code></td><td>Session boundary VWAP resets on — <a href="#timezone">details</a></td></tr>
+          <tr><td><code>lang</code></td><td><code>en</code></td><td>UI string pack for built-in labels (<code>en</code>, <code>de</code>, or a registered pack) — <a href="#i18n">details</a></td></tr>
+          <tr><td><code>preset</code></td><td>–</td><td>Chrome starting point: <code>minimal</code> (series only) or <code>pro</code> (stats + volume) — <a href="#i18n">details</a></td></tr>
         </table>
         <p>* <code>indicators=""</code> disables everything, including volume.</p>
+      </section>
+
+      <section id="i18n">
+        <h2>i18n &amp; presets <a class="anchor" href="#i18n">#</a></h2>
+        <p>Built-in UI chrome — the empty state, the stats chip labels, the measure
+        readout, the accessibility label — ships in string packs selected by
+        <code>lang</code> (English and German built in; numbers and dates already
+        follow the viewer's locale through <code>Intl</code>). Register your own:</p>
+        <pre><code>import { WickChart } from 'wickchart';
+
+WickChart.registerStrings('fr', {
+  noData: 'Aucune donnée',
+  bars: 'bougies',
+});</code></pre>
+        <p>Untranslated keys fall back to English; unknown <code>lang</code> codes
+        fall back to English entirely.</p>
+        <p><code>preset</code> is a starting point for the chrome, never an override —
+        explicit attributes keep their word. <code>preset="minimal"</code> hides the
+        legend, stats chip and volume pane (just the series, for embedding);
+        <code>preset="pro"</code> turns the stats chip and volume pane on (the dense
+        trading view).</p>
       </section>
 
       <section id="indicators">
