@@ -276,6 +276,7 @@ class WickChart extends HTMLElementBase {
       this._pwNarrow = null; // pending axis shrink { want, t }
       this._ySettle = null; // settled raw y-range { lo, hi } (see _settleRange)
       this._yNarrow = null; // pending y contraction { lo, hi, t }
+      this._series = null; // named aux series (see setSeries)
       this._cache = { v: -1, map: {} };
       this._pal = null; // palette cache
       this._palKey = '';
@@ -779,6 +780,45 @@ class WickChart extends HTMLElementBase {
       this._needsFit = true;
       this._noMore = false;
       this._updateAria();
+      this._invalidate();
+    }
+
+    /**
+     * Register a named auxiliary series — a second symbol — for
+     * cross-symbol WickScript. Each series becomes
+     * `<name>_open/_high/_low/_close/_volume` variables in expressions,
+     * time-aligned to the primary data (NaN where the symbols don't
+     * overlap): with `setSeries('eth', ethBars)`,
+     * `indicators="pexpr:{close - eth_close}"` is a spread pane with its
+     * own axis. Re-registering a name replaces it; an empty array clears.
+     * @param {string} name
+     * @param {Array<import('./core.js').Bar>} bars
+     */
+    setSeries(name, bars) {
+      if (typeof name !== 'string' || !name) return;
+      const norm = [];
+      if (Array.isArray(bars)) {
+        for (const b of bars) {
+          const nb = WickChart._normBar(b);
+          if (nb) norm.push(nb);
+        }
+      }
+      if (!norm.length) {
+        this.clearSeries(name);
+        return;
+      }
+      norm.sort((a, b) => a.time - b.time);
+      if (!this._series) this._series = {};
+      this._series[name] = norm;
+      this._version++;
+      this._invalidate();
+    }
+
+    /** Remove a series registered by {@link setSeries}. */
+    clearSeries(name) {
+      if (!this._series || !(name in this._series)) return;
+      delete this._series[name];
+      this._version++;
       this._invalidate();
     }
 
@@ -1537,8 +1577,14 @@ class WickChart extends HTMLElementBase {
         let res;
         try {
           // the session anchor rides along for indicators that observe one
-          // (vwap); the rest ignore the extra key
-          res = entry.def.compute(this._data, { ...entry.params, anchor: this._vwapAnchor });
+          // (vwap); aux series for cross-symbol scripts (see setSeries);
+          // the rest ignore the extra keys. The aux read is an inline
+          // property check so borrowed-method test stubs need no new seam.
+          res = entry.def.compute(this._data, {
+            ...entry.params,
+            anchor: this._vwapAnchor,
+            aux: this._series && this._data.length ? this._series : undefined,
+          });
         } catch (err) {
           res = null;
         }

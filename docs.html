@@ -279,7 +279,21 @@
 chart.<span class="attr">setData</span>(bars);   <span class="cmt">// full history (replaces)</span>
 chart.<span class="attr">update</span>(bar);      <span class="cmt">// stream: updates last bar or appends the next</span>
 chart.<span class="attr">clearData</span>();     <span class="cmt">// empty the chart</span>
-chart.<span class="attr">data</span>;             <span class="cmt">// getter — the live bar array</span></pre></div>
+chart.<span class="attr">data</span>;             <span class="cmt">// getter — the live bar array</span>
+
+<span class="cmt">// cross-symbol spreads: register a second symbol, then reference its</span>
+<span class="cmt">// fields in WickScript as name_close, name_high, … (time-aligned, NaN in gaps)</span>
+chart.<span class="attr">setSeries</span>(<span class="str">'eth'</span>, ethBars);
+chart.<span class="attr">clearSeries</span>(<span class="str">'eth'</span>);</pre></div>
+
+        <h3>Spread &amp; ratio panes</h3>
+        <p>A pane expression over a registered series is a spread chart with its own axis:</p>
+        <div class="codewrap"><pre class="code">&lt;wick-chart indicators=<span class="str">"pexpr:{close - eth_close}"</span>&gt;&lt;/wick-chart&gt;
+<span class="cmt">// ratio with a moving-average of the spread, same pane</span>
+&lt;wick-chart indicators=<span class="str">"pexpr:{close / eth_close}"</span>&gt;&lt;/wick-chart&gt;</pre></div>
+        <p>The pane autoscales to its own values, so the spread's units never
+        fight the price axis. Values are NaN where the two symbols' timestamps
+        don't overlap.</p>
 
         <h3>Infinite history (backfill)</h3>
         <p>Assign <code>onloadmore</code> and the chart fetches older bars when the user scrolls past the left edge — the view stays anchored:</p>
