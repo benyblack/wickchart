@@ -63,15 +63,32 @@ export function inkedPixels(page) {
  * once, so the signal is nowhere near the noise floor.
  *
  * The pixels never leave the page — only the ratio crosses the wire.
+ *
+ * The picture is a stack now (main frame + offscreen hover layer), so
+ * snapshots and diffs composite every canvas in the shadow root — what the
+ * eye sees, not just the bottom sheet.
  */
+
+/** Composite all chart canvases (main + overlays) into one ImageData. */
+function grabComposite() {
+  const cvs = [...window.chart.shadowRoot.querySelectorAll('canvas')];
+  const off = document.createElement('canvas');
+  off.width = cvs[0].width;
+  off.height = cvs[0].height;
+  const c = off.getContext('2d');
+  for (const cv of cvs) c.drawImage(cv, 0, 0);
+  return c.getImageData(0, 0, off.width, off.height);
+}
+// install once per page load, evaluable from both helpers below
+const INSTALL_GRAB = `window.__grabComposite = ${grabComposite.toString()}; true;`;
 
 /** Store the current canvas under `key` for a later {@link canvasDiff}. */
 export async function snapshotCanvas(page, key = 'base') {
+  await page.evaluate(INSTALL_GRAB);
   await page.evaluate(async (k) => {
     await window.settle();
-    const cv = window.chart.shadowRoot.querySelector('canvas');
     window.__snaps = window.__snaps || {};
-    window.__snaps[k] = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
+    window.__snaps[k] = window.__grabComposite();
   }, key);
 }
 
@@ -84,7 +101,7 @@ export function canvasDiff(page, key = 'base', tol = 3, band = null) {
     async ([k, t, band]) => {
       await window.settle();
       const cv = window.chart.shadowRoot.querySelector('canvas');
-      const now = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height);
+      const now = window.__grabComposite();
       const was = (window.__snaps || {})[k];
       if (!was) throw new Error('no canvas snapshot named ' + k);
       if (was.width !== now.width || was.height !== now.height) {

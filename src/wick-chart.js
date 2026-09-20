@@ -115,6 +115,11 @@ class WickChart extends HTMLElementBase {
             /* long-press is the scrub gesture — suppress the iOS callout */
             -webkit-touch-callout: none;
           }
+          /* the offscreen hover layer: stacked over the main canvas (later
+             in DOM order), transparent, never a pointer target — the
+             crosshair repaints here alone while the chart beneath holds
+             its last full frame */
+          canvas.ov { pointer-events: none; }
           canvas.grabbing { cursor: grabbing; }
           .legend {
             position: absolute; left: 10px; top: 8px; z-index: 2;
@@ -214,6 +219,7 @@ class WickChart extends HTMLElementBase {
         </style>
         <div class="wrap" part="wrap">
           <canvas part="canvas" role="img"></canvas>
+          <canvas class="ov" aria-hidden="true"></canvas>
           <div class="legend" part="legend" aria-hidden="true"></div>
           <div class="hud" part="hud" aria-hidden="true">
             <div class="poss"></div>
@@ -224,6 +230,8 @@ class WickChart extends HTMLElementBase {
 
       this._canvas = root.querySelector('canvas');
       this._ctx = this._canvas.getContext('2d');
+      this._ovCanvas = root.querySelector('canvas.ov');
+      this._ovCtx = this._ovCanvas.getContext('2d');
       this._legend = root.querySelector('.legend');
       this._hud = root.querySelector('.hud');
       this._poss = root.querySelector('.poss');
@@ -799,9 +807,17 @@ class WickChart extends HTMLElementBase {
       this._emitRange();
     }
 
-    /** Current canvas as a PNG data URL. */
+    /** Current canvas as a PNG data URL (main frame + hover overlay). */
     exportPNG() {
-      return this._canvas.toDataURL('image/png');
+      const main = this._canvas;
+      if (!this._ovCanvas) return main.toDataURL('image/png');
+      const off = document.createElement('canvas');
+      off.width = main.width;
+      off.height = main.height;
+      const c = off.getContext('2d');
+      c.drawImage(main, 0, 0);
+      c.drawImage(this._ovCanvas, 0, 0);
+      return off.toDataURL('image/png');
     }
 
     /**
@@ -1636,6 +1652,11 @@ class WickChart extends HTMLElementBase {
         this._canvas.width = bw;
         this._canvas.height = bh;
       }
+      // the hover overlay mirrors the main backing store 1:1
+      if (this._ovCanvas.width !== bw || this._ovCanvas.height !== bh) {
+        this._ovCanvas.width = bw;
+        this._ovCanvas.height = bh;
+      }
       this._W = W;
       this._H = H;
       this._dpr = dpr;
@@ -1974,6 +1995,7 @@ class WickChart extends HTMLElementBase {
         this._poss.innerHTML = '';
         this._statsRow.innerHTML = '';
         this._legendKey = 'empty';
+        this._paintOverlay(); // clears any crosshair left from before the clear
         return;
       }
 
@@ -2754,72 +2776,7 @@ class WickChart extends HTMLElementBase {
       /* plugin layers — above chart content, under the pointer-following UI */
       if (this._layers.length) this._drawLayers(ctx, pal, ly, d);
 
-      /* crosshair */
-      if (this._hover && this._hover.index < d.length) {
-        const h = this._hover;
-        const hx = this._xFor(h.index);
-        ctx.save();
-        ctx.strokeStyle = pal.crosshair;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        const cx = Math.round(hx) + 0.5;
-        if (cx >= 0 && cx <= plotRight) {
-          ctx.moveTo(cx, 0);
-          ctx.lineTo(cx, plotBottom);
-        }
-        const inMain = h.y <= main.y1;
-        const paneUnder = inMain
-          ? null
-          : ly.panes.find((p) => h.y >= p.y0 && h.y <= p.y1);
-        if (inMain || paneUnder) {
-          const hy = Math.round(h.y) + 0.5;
-          ctx.moveTo(0, hy);
-          ctx.lineTo(plotRight, hy);
-        }
-        ctx.stroke();
-        ctx.restore();
-
-        // price pill
-        if (inMain) {
-          this._pill(
-            plotRight + 2,
-            h.y,
-            f.format(invY(h.y)),
-            pal.crosshairBg,
-            pal.crosshairText,
-            'left'
-          );
-        } else if (paneUnder) {
-          const fmtV =
-            paneUnder.entry.def.fmt === 'fixed1'
-              ? (v) => v.toFixed(1)
-              : paneUnder.entry.def.fmt === 'compact'
-              ? (v) => fmtCompact(v)
-              : (v) => f.format(v);
-          this._pill(
-            plotRight + 2,
-            h.y,
-            fmtV(paneUnder.invPy(h.y)),
-            pal.crosshairBg,
-            pal.crosshairText,
-            'left'
-          );
-        }
-
-        // time pill
-        const tLabel = fmtFull(this._zt(d[h.index].time));
-        ctx.font = pillFont();
-        const tw = ctx.measureText(tLabel).width + 12;
-        this._pill(
-          clamp(hx - tw / 2, 2, plotRight - tw - 2),
-          plotBottom + 2,
-          tLabel,
-          pal.crosshairBg,
-          pal.crosshairText,
-          'left',
-          tw
-        );
-      }
+      /* crosshair: lives on the offscreen hover layer (see _paintOverlay) */
 
       /* measure tool overlay */
       if (this._measure && this._measure.pA != null && this._measure.pB != null) {
@@ -2931,23 +2888,107 @@ class WickChart extends HTMLElementBase {
       }
 
       this._updateLegend();
+      // full frames end by refreshing the hover layer so the crosshair
+      // tracks the new scale/data instead of floating over a stale grid
+      this._paintOverlay();
     }
 
-    _pill(x, y, text, bg, fg, align = 'left', widthOverride) {
-      const ctx = this._ctx;
-      ctx.save();
-      ctx.font = pillFont();
-      const tw = widthOverride || ctx.measureText(text).width + 12;
+    _pill(x, y, text, bg, fg, align = 'left', widthOverride, ctx = this._ctx) {
+      const c = ctx;
+      c.save();
+      c.font = pillFont();
+      const tw = widthOverride || c.measureText(text).width + 12;
       const th = 18;
       const yy = clamp(y - th / 2, 0, this._H - th);
-      ctx.fillStyle = bg;
-      roundRectPath(ctx, x, yy, tw, th, 4);
-      ctx.fill();
-      ctx.fillStyle = fg;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, x + tw / 2, yy + th / 2 + 0.5);
+      c.fillStyle = bg;
+      roundRectPath(c, x, yy, tw, th, 4);
+      c.fill();
+      c.fillStyle = fg;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(text, x + tw / 2, yy + th / 2 + 0.5);
+      c.restore();
+    }
+
+    /**
+     * The crosshair, drawn onto whatever 2d context is handed in. It used
+     * to live in the main render pass; it now draws on the offscreen hover
+     * layer, so a pointer crossing the chart repaints only this — the
+     * series, axes and panes beneath keep their last full frame. Everything
+     * it needs survives between renders: the layout, the last scale, and
+     * the pill machinery.
+     */
+    _drawCrosshair(ctx) {
+      const ly = this._ly;
+      const scale = this._lastScale;
+      const d = this._renderBars();
+      if (!ly || !scale || !this._hover || this._hover.index >= d.length) return;
+      const { plotRight, plotBottom, main } = ly;
+      const pal = this._palette();
+      const f = numberFmt(this._prec(scale.rawHi || 1));
+      const invY = (y) => {
+        const t = scale.max - ((y - main.y0) / main.h) * (scale.max - scale.min);
+        return scale.useLog ? Math.pow(10, t) : t;
+      };
+      const h = this._hover;
+      const hx = this._xFor(h.index);
+      ctx.save();
+      ctx.strokeStyle = pal.crosshair;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      const cx = Math.round(hx) + 0.5;
+      if (cx >= 0 && cx <= plotRight) {
+        ctx.moveTo(cx, 0);
+        ctx.lineTo(cx, plotBottom);
+      }
+      const inMain = h.y <= main.y1;
+      const paneUnder = inMain
+        ? null
+        : ly.panes.find((p) => h.y >= p.y0 && h.y <= p.y1);
+      if (inMain || paneUnder) {
+        const hy = Math.round(h.y) + 0.5;
+        ctx.moveTo(0, hy);
+        ctx.lineTo(plotRight, hy);
+      }
+      ctx.stroke();
       ctx.restore();
+
+      // price pill
+      if (inMain) {
+        this._pill(plotRight + 2, h.y, f.format(invY(h.y)), pal.crosshairBg, pal.crosshairText, 'left', undefined, ctx);
+      } else if (paneUnder) {
+        const fmtV =
+          paneUnder.entry.def.fmt === 'fixed1'
+            ? (v) => v.toFixed(1)
+            : paneUnder.entry.def.fmt === 'compact'
+            ? (v) => fmtCompact(v)
+            : (v) => f.format(v);
+        this._pill(plotRight + 2, h.y, fmtV(paneUnder.invPy(h.y)), pal.crosshairBg, pal.crosshairText, 'left', undefined, ctx);
+      }
+
+      // time pill
+      const tLabel = fmtFull(this._zt(d[h.index].time));
+      ctx.font = pillFont();
+      const tw = ctx.measureText(tLabel).width + 12;
+      this._pill(
+        clamp(hx - tw / 2, 2, plotRight - tw - 2),
+        plotBottom + 2,
+        tLabel,
+        pal.crosshairBg,
+        pal.crosshairText,
+        'left',
+        tw,
+        ctx
+      );
+    }
+
+    /** Repaint the hover overlay alone: clear, then the crosshair if any. */
+    _paintOverlay() {
+      const ctx = this._ovCtx;
+      if (!ctx || !this._W) return;
+      ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+      ctx.clearRect(0, 0, this._W, this._H);
+      this._drawCrosshair(ctx);
     }
 
     _updateLegend() {
@@ -3298,14 +3339,18 @@ class WickChart extends HTMLElementBase {
 
     /**
      * Put the crosshair on the bar under a point and announce it. Shared by
-     * mouse hover, keyboard walking and the touch scrub gesture.
+     * mouse hover, keyboard walking and the touch scrub gesture. This is
+     * the hot path — pointermove fires far oftener than anything else —
+     * so it repaints only the hover overlay and refreshes the legend
+     * readout; the chart beneath keeps its last full frame.
      */
     _hoverAt(pt) {
       if (!this._ly || !this._data.length) return;
       const idx = clamp(Math.round(this._indexForX(pt.x)), 0, this._data.length - 1);
       this._hover = { index: idx, x: this._xFor(idx), y: pt.y };
       this._emitCrosshair(this._hover);
-      this._invalidate();
+      this._updateLegend();
+      this._paintOverlay();
     }
 
     /**
