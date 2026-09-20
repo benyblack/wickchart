@@ -905,12 +905,18 @@ export function buildColumns(bars, i0, i1, xOf, plotRight) {
         high: b.high,
         low: b.low,
         close: b.close,
+        // close extremes: a line/area chart at deep zoom must still show a
+        // one-bar spike inside a pixel column, not just the last close
+        cMin: b.close,
+        cMax: b.close,
         volume: b.volume || 0,
       };
     } else {
       c.i1 = i;
       if (b.high > c.high) c.high = b.high;
       if (b.low < c.low) c.low = b.low;
+      if (b.close < c.cMin) c.cMin = b.close;
+      if (b.close > c.cMax) c.cMax = b.close;
       c.close = b.close;
       c.volume += b.volume || 0;
     }

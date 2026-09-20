@@ -1723,8 +1723,8 @@ class WickChart extends HTMLElementBase {
       let hi = -Infinity;
       if (cols) {
         for (const c of cols) {
-          const h = candles ? c.high : c.close;
-          const l = candles ? c.low : c.close;
+          const h = candles ? c.high : c.cMax != null ? c.cMax : c.close;
+          const l = candles ? c.low : c.cMin != null ? c.cMin : c.close;
           if (l < lo) lo = l;
           if (h > hi) hi = h;
         }
@@ -2373,7 +2373,20 @@ class WickChart extends HTMLElementBase {
         const accent = pal.accent;
         const pts = [];
         if (cols) {
-          for (const c of cols) pts.push([c.x, yOf(c.close)]);
+          // min/max downsampling: both close extremes of each pixel column
+          // join the polyline (nearest-to-previous first, so no fake
+          // sawtooth) — a one-bar spike inside a column stays visible
+          let prev = null;
+          for (const c of cols) {
+            const lo = c.cMin != null ? c.cMin : c.close;
+            const hi = c.cMax != null ? c.cMax : c.close;
+            if (lo === hi || (prev != null && Math.abs(prev - hi) < Math.abs(prev - lo))) {
+              pts.push([c.x, yOf(hi)], [c.x, yOf(lo)]);
+            } else {
+              pts.push([c.x, yOf(lo)], [c.x, yOf(hi)]);
+            }
+            prev = c.close;
+          }
         } else {
           for (let i = i0; i <= i1; i++) pts.push([this._xFor(i), yOf(d[i].close)]);
         }
