@@ -2,8 +2,7 @@
 // Track-5 S-items). Packs: built-in en/de, host registration with English
 // fallback for untranslated keys, unknown lang → en. Preset: a chrome
 // starting point that explicit attributes override.
-// (Named i18n-preset at write time; renamed to the prNN convention when
-// the batch PR number is known — see docs/decisions/2.1.0-polish-track.md.)
+// PR #80 — the 2.1 polish track.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 

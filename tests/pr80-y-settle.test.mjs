@@ -5,8 +5,7 @@
 // settled range expands the violated side at once, contracts only to a
 // range the data has occupied under 90% of for a sustained 750ms, and
 // user/scale-input changes snap to a fresh tight fit.
-// (Named axis-y-settle at write time; renamed to the prNN convention when
-// the batch PR number is known — see docs/decisions/2.1.0-polish-track.md.)
+// PR #80 — the 2.1 polish track.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 

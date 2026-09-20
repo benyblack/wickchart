@@ -2,8 +2,7 @@
 // gaps), aux vars in evalScript (`eth_close`), and the setSeries/
 // clearSeries API that feeds them — the core primitive behind a spread
 // pane with its own axis (`pexpr:{close - eth_close}`).
-// (Named spread-pane at write time; renamed to the prNN convention when
-// the batch PR number is known — see docs/decisions/2.1.0-polish-track.md.)
+// PR #80 — the 2.1 polish track.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
