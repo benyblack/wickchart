@@ -79,7 +79,7 @@ is suggested priority.
 | ~~Sonification toggle~~ ✅ shipped | Pitch maps to price movement — screen-reader traders get trend by ear. Rare a11y win. | S–M |
 | ~~AI-ready data hook~~ ✅ shipped | `chart.getDataWindow()` — structured + markdown summary of the visible window (trend, vol percentile, patterns); demo "Explain" button with copy-to-clipboard. Data stays local. | S |
 | ~~Branded snapshot/report export~~ ✅ shipped | `wickchart/report` — `exportReport(chart, opts)` / `downloadReport()`: header (title, range, brand) + the DPR-crisp chart with a corner watermark + a visible-range stats grid (the same computeStats the panel uses) + a credited footer; themed from the chart's own `--wick-*` variables; pure `reportModel()` exported. Zero core changes. | M |
-| Spread & ratio charts (pane) | ~~`formula="BTC/ETH"` live derived series~~ derived ratio/diff lines shipped in `wickchart-compare` (rebased, raw value in the legend); a dedicated spread *pane* with its own axis stays open — needs core pane support. | M |
+| Spread & ratio charts (pane) | ~~`formula="BTC/ETH"` live derived series~~ derived ratio/diff lines shipped in `wickchart-compare` (rebased, raw value in the legend); ~~a dedicated spread *pane* with its own axis stays open — needs core pane support~~ ✅ shipped (2.1): `chart.setSeries(name, bars)` registers a second symbol and WickScript reads it as `name_close`/`name_high`/… (time-aligned, NaN in gaps) — `pexpr:{close - eth_close}` is a spread pane with its own autoscaled axis. wickchart-compare can feed `setSeries` to upgrade its rebased lines into true panes (the plugin's call). | M |
 
 ## Track 5 — Engineering & scale (continuous)
 
@@ -87,15 +87,15 @@ is suggested priority.
   visual-regression diffs, and a **perf-budget CI gate** from the benchmark
   script we already wrote (fail if default-view render > 1 ms). *M*
 - ~~**Incremental indicators**~~ ✅ shipped (PR #65) — streamed ticks (append / forming-bar replace) patch every online-capable series by recomputing a bounded tail with the *same* batch definition (O(warm-up) ≈ 0.1 ms per indicator, not O(full history)), writing only the last `period` values so history keeps its exact full-compute values; seeds come from the sync or the worker compute, so the forming bar stays fresh on 1M-bar worker charts too. `obv`/`vwap` (cumulative) and `supertrend` (stateful) are excluded by construction.
-- **Columnar typed-array store** internally (accept objects, convert once). *M*
-- **Min/max downsampling** per pixel column for extreme zoom-outs. *M*
-- Offscreen hover layer (crosshair-only repaint). *M*
+- **Columnar typed-array store** internally (accept objects, convert once). *M* — **deferred on measurement** (2.1, see `docs/decisions/2.1.0-polish-track.md` D6): render is O(pixel columns) and flat in store size (4.8 ms default view at 1M bars), the scan it would optimize costs 10.5 ms/M bars and only at full zoom, and the heavy compute already runs columnar in the worker. Reopen on profiler evidence (≥5M bars or sub-16 ms low-end budgets).
+- ~~**Min/max downsampling** per pixel column for extreme zoom-outs~~ ✅ shipped (2.1) — candles had it since the deep-zoom aggregation (high/low min-max per pixel column); 2.1 closed the line/area gap: columns also track close extremes (`cMin`/`cMax`), both join the polyline (nearest-to-previous first), and the line-mode autoscale scan uses them — a one-bar spike inside a column survives.
+- ~~Offscreen hover layer (crosshair-only repaint)~~ ✅ shipped (2.1) — the crosshair lives on its own transparent canvas stacked over the main one; a pointer crossing the chart repaints only that layer (browser-measured: 0 full renders across 20 hover calls) and full frames refresh it last so live ticks keep it honest. `exportPNG` composites both layers.
 - ~~Web Worker compute path for 1M+ bars~~ ✅ shipped (PR #64) — `import 'wickchart/worker'` + `<wick-chart worker>`: built-in indicators compute in a module Worker, the dataset crossing once per bulk load as transferable Float64Arrays (~25 ms/M bars — object clones measured at ~1 s and disqualified); results cached per data epoch so streamed ticks stop recomputing; builtin-only (closures can't cross), 50k+ bars, silent sync fallback. Main entry +1.66 KB (budget 72→74). Rust/WASM stays a non-goal (canvas, not JS, is the floor).
 - Packaging: ~~JSDoc types → `.d.ts`, npm publish + CDN links~~ ✅, ~~`useWickChart`
   React hook + Vue/Svelte examples~~ ✅ shipped as `wickchart/react` (+ live
   `demo/react.html`); ~~semver/changelog policy~~ ✅ CHANGELOG.md (policy +
 per-release entries; releases cut as tagged GitHub Releases). *S–M*
-- i18n for built-in labels; `preset="minimal|pro"` attribute. *S*
+- ~~i18n for built-in labels; `preset="minimal|pro"` attribute~~ ✅ shipped (2.1) — string packs (`lang`, en/de built in, `WickChart.registerStrings()` for hosts; numbers/dates already viewer-locale via Intl) and `preset="minimal|pro"` as a chrome starting point that explicit attributes override.
 
 ### Explicit non-goals
 
@@ -115,11 +115,13 @@ Canvas 2D floor is ~1 ms at our scale — revisit only with profiler evidence).
 4. ~~**Stats panel + measure tool**~~ ✅ shipped
 5. ~~**`getState()/setState()` + URL sharing**~~ ✅ shipped
 
-**Next up (suggested):** v1.7.0 is cut (see CHANGELOG.md). What remains
-is polish — i18n + `preset=` (S items) and the dedicated spread pane (M) if
-demand appears — and **[the 2.0 plan](./ROADMAP-V2.md)**: the plugin split
-(~9.6 KB out of the core entry, four new packages) and the removal of the
-deprecated `hab-*` aliases, delivered as "prepare additively on 1.x, cut
-atomically" — see ROADMAP-V2.md for the PR sequence and open decisions.
+**Next up (suggested):** 2.0.2 is out and the 2.1 polish track cleared
+the roadmap's remaining open items — live-render polish (y-range settle,
+offscreen hover layer), close-extreme downsampling, cross-symbol spread
+panes, i18n + presets (see CHANGELOG). What's left on purpose: the
+**perf-budget CI gate** (the only unshipped Track-5 line), the deferred
+columnar store (reopen on profiler evidence, `docs/decisions/2.1.0-polish-track.md`
+D6), and whatever demand surfaces next. The 2.0 plan is fully delivered
+(ROADMAP-V2.md is historical).
 
 Each PR lands with the perf gate green (<1 ms default view, <8 ms max zoom-out).
