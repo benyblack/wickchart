@@ -240,6 +240,8 @@ class WickChart extends HTMLElementBase {
       this._ly = null; // last layout
       this._priceW = null; // settled price-axis width (see _axisWidth)
       this._pwNarrow = null; // pending axis shrink { want, t }
+      this._ySettle = null; // settled raw y-range { lo, hi } (see _settleRange)
+      this._yNarrow = null; // pending y contraction { lo, hi, t }
       this._cache = { v: -1, map: {} };
       this._pal = null; // palette cache
       this._palKey = '';
@@ -457,9 +459,11 @@ class WickChart extends HTMLElementBase {
           break;
         case 'type':
           this._type = SERIES_TYPES.includes(val) ? val : 'candles';
+          this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
           break;
         case 'log':
           this._log = val != null && val !== 'false';
+          this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
           break;
         case 'auto':
           this._auto = val == null || val !== 'false';
@@ -472,6 +476,7 @@ class WickChart extends HTMLElementBase {
           break;
         case 'indicators':
           this._ind = parseIndicators(val, WickChart._registry());
+          this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
           break;
         case 'worker':
           this._workerOn = val != null && val !== 'false';
@@ -503,6 +508,7 @@ class WickChart extends HTMLElementBase {
             }
           }
           this._overlays = ovs;
+          this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
           break;
         }
         case 'brush':
@@ -629,6 +635,7 @@ class WickChart extends HTMLElementBase {
       // a replacement dataset is a new instrument regime — re-measure the
       // axis from its own prices instead of debouncing down from the old one
       this._priceW = this._pwNarrow = null;
+      this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
       // history is not a live signal: re-baseline so close-mode alerts only
       // fire on candles that close from here on
       this._syncClosedIdx();
@@ -691,6 +698,7 @@ class WickChart extends HTMLElementBase {
       this._version++;
       this._epoch++;
       this._priceW = this._pwNarrow = null;
+      this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
       this._syncClosedIdx();
       this._hover = null;
       this._needsFit = true;
@@ -785,6 +793,7 @@ class WickChart extends HTMLElementBase {
       this._view.spacing = clamp(plotRight / (i1 - i0), this._minSpacing(), WickChart._MAX_SP);
       this._view.rightIndex = i1;
       this._auto = false;
+      this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
       this._clampView();
       this._invalidate();
       this._emitRange();
@@ -1648,6 +1657,7 @@ class WickChart extends HTMLElementBase {
       const target = Math.min(d.length, 150);
       this._view.spacing = clamp(plotRight / target, this._minSpacing(), WickChart._MAX_SP);
       this._view.rightIndex = d.length - 1 + this._rightMargin();
+      this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
     }
 
     _clampView() {
@@ -1741,6 +1751,9 @@ class WickChart extends HTMLElementBase {
         hi += e;
         lo -= e;
       }
+      const settled = this._settleRange(lo, hi);
+      lo = settled[0];
+      hi = settled[1];
       const pad = (hi - lo) * 0.08;
       let min = lo - pad;
       let max = hi + pad;
@@ -1751,6 +1764,42 @@ class WickChart extends HTMLElementBase {
         if (max - min < 1e-9) max = min + 1;
       }
       return { min, max, useLog, rawMin: lo, rawHi: hi };
+    }
+
+    /**
+     * Y-range settle policy — the vertical twin of _axisWidth. A tick that
+     * sets a new visible extreme must expand the range at once (never
+     * clip), but re-fitting every render makes the whole chart breathe:
+     * overlays track the forming close both ways, and each new bar slides
+     * the window, so a tight per-frame re-fit oscillates. Keep a settled
+     * raw range instead: expand the violated side immediately; contract
+     * only to a range the data has occupied under 90% of, sustained for
+     * 750ms. User-driven window changes (pan/zoom/fit/setVisibleRange) and
+     * scale-input changes (type/log/indicators/overlays, bulk data) snap
+     * straight to a fresh tight fit (the y-snap field write, inlined at
+     * the call sites so borrowed-method test stubs need no new seam).
+     */
+    _settleRange(lo, hi) {
+      const s = this._ySettle;
+      if (!s) {
+        this._ySettle = { lo, hi };
+      } else if (lo < s.lo || hi > s.hi) {
+        if (lo < s.lo) s.lo = lo;
+        if (hi > s.hi) s.hi = hi;
+        this._yNarrow = null;
+      } else if (hi - lo <= (s.hi - s.lo) * 0.9) {
+        if (!this._yNarrow || this._yNarrow.lo !== lo || this._yNarrow.hi !== hi) {
+          this._yNarrow = { lo, hi, t: performance.now() };
+        } else if (performance.now() - this._yNarrow.t >= 750) {
+          this._ySettle = { lo, hi };
+          this._yNarrow = null;
+        }
+      } else {
+        // usage climbed back above 90%: the hold is broken, restart it
+        this._yNarrow = null;
+      }
+      const r = this._ySettle;
+      return [r.lo, r.hi];
     }
 
     _priceTicks(scale, height) {
@@ -3397,6 +3446,7 @@ class WickChart extends HTMLElementBase {
         this._view.spacing = s;
         this._view.rightIndex = this._pinch.idxAtMid + (ly.plotRight - mid.x) / s;
         this._auto = this._atRight();
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._clampView();
         this._hover = null;
         this._invalidate();
@@ -3424,6 +3474,7 @@ class WickChart extends HTMLElementBase {
         if (Math.abs(dx) > 3) this._pan.moved = true;
         this._view.rightIndex = this._pan.rightIndex - dx / this._view.spacing;
         this._auto = this._atRight();
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._clampView();
         this._invalidate();
         this._emitRange();
@@ -3516,6 +3567,7 @@ class WickChart extends HTMLElementBase {
         // trackpads this makes the content follow the fingers, matching drag.
         this._view.rightIndex += dx / this._view.spacing;
         this._auto = this._atRight();
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._clampView();
         this._invalidate();
         this._emitRange();
@@ -3530,6 +3582,7 @@ class WickChart extends HTMLElementBase {
       this._view.spacing = newSp;
       this._view.rightIndex = idxAtCursor + (ly.plotRight - pt.x) / newSp;
       this._auto = this._atRight();
+      this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
       this._clampView();
       this._invalidate();
       this._emitRange();
@@ -3563,20 +3616,24 @@ class WickChart extends HTMLElementBase {
       } else if (key === 'Home') {
         this._view.rightIndex = Math.min(2 + ly.plotRight / this._view.spacing, d.length - 1);
         this._auto = this._atRight();
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._invalidate();
         this._emitRange();
       } else if (key === 'End') {
         this._view.rightIndex = d.length - 1 + this._rightMargin();
         this._auto = true;
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._invalidate();
         this._emitRange();
       } else if (key === '+' || key === '=') {
         this._view.spacing = clamp(this._view.spacing * 1.25, this._minSpacing(), WickChart._MAX_SP);
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._clampView();
         this._invalidate();
         this._emitRange();
       } else if (key === '-' || key === '_') {
         this._view.spacing = clamp(this._view.spacing / 1.25, this._minSpacing(), WickChart._MAX_SP);
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._clampView();
         this._invalidate();
         this._emitRange();
