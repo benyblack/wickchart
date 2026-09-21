@@ -92,3 +92,8 @@ test('re-registering a built-in name replaces it globally', () => {
   assert.equal(getTheme('light').bg, '#f0f0f0');
   THEMES.light = orig; // restore for the rest of this file's tests
 });
+
+test('the main entry re-exports registerTheme', async () => {
+  const mod = await import('../src/wick-chart.js');
+  assert.equal(typeof mod.registerTheme, 'function');
+});

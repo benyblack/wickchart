@@ -23,7 +23,7 @@ import {
   clamp, isNum, numberFmt, fmtCompact, autoPrecision, niceStep, hexToRgba,
   FONT_STACK, axisFont, pillFont, roundRectPath,
   TIME_STEPS, HOUR, DAY, toMs, zoneOffset, hhmm, fmtDay, fmtMonth, fmtYear, fmtFull,
-  THEMES, mergeOlderData, detectGaps,
+  THEMES, mergeOlderData, detectGaps, registerTheme, resolveThemeName, THEMES_VERSION,
   parseIndicators, normalizeIndicatorResult, BUILTIN_INDICATORS,
   positionPnl, positionPnlPct, checkAlertCross, computeStats, safeColor,
   SERIES_TYPES, calcHeikinAshi, buildColumns, computeVolumeProfile,
@@ -495,7 +495,7 @@ class WickChart extends HTMLElementBase {
     attributeChangedCallback(name, _old, val) {
       switch (name) {
         case 'theme':
-          this._theme = val === 'light' ? 'light' : 'dark';
+          this._theme = resolveThemeName(val);
           break;
         case 'type':
           this._type = SERIES_TYPES.includes(val) ? val : 'candles';
@@ -1482,7 +1482,8 @@ class WickChart extends HTMLElementBase {
     }
 
     _palette() {
-      if (this._pal && this._palKey === this._theme) return this._pal;
+      const palKey = this._theme + ' ' + THEMES_VERSION;
+      if (this._pal && this._palKey === palKey) return this._pal;
       const base = THEMES[this._theme] || THEMES.dark;
       const cs = getComputedStyle(this);
       const get = (name, fallback) => cs.getPropertyValue('--wick-' + name).trim() || fallback;
@@ -1503,7 +1504,7 @@ class WickChart extends HTMLElementBase {
       pal.volAlpha = parseFloat(pal.volAlpha);
       if (!isNum(pal.volAlpha)) pal.volAlpha = 0.33;
       this._pal = pal;
-      this._palKey = this._theme;
+      this._palKey = palKey;
       return pal;
     }
 
@@ -3967,4 +3968,4 @@ if (typeof customElements !== 'undefined') {
 }
 
 export default WickChart;
-export { WickChart };
+export { WickChart, registerTheme };
