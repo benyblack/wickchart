@@ -23,7 +23,7 @@ import {
   clamp, isNum, numberFmt, fmtCompact, autoPrecision, niceStep, hexToRgba,
   FONT_STACK, axisFont, pillFont, roundRectPath,
   TIME_STEPS, HOUR, DAY, toMs, zoneOffset, hhmm, fmtDay, fmtMonth, fmtYear, fmtFull,
-  THEMES, mergeOlderData, detectGaps, registerTheme, resolveThemeName, THEMES_VERSION,
+  THEMES, mergeOlderData, detectGaps, registerTheme, THEMES_VERSION,
   parseIndicators, normalizeIndicatorResult, BUILTIN_INDICATORS,
   positionPnl, positionPnlPct, checkAlertCross, computeStats, safeColor,
   SERIES_TYPES, calcHeikinAshi, buildColumns, computeVolumeProfile,
@@ -495,7 +495,7 @@ class WickChart extends HTMLElementBase {
     attributeChangedCallback(name, _old, val) {
       switch (name) {
         case 'theme':
-          this._theme = resolveThemeName(val);
+          this._theme = val || 'dark';
           break;
         case 'type':
           this._type = SERIES_TYPES.includes(val) ? val : 'candles';
@@ -3177,7 +3177,7 @@ class WickChart extends HTMLElementBase {
       const key = [
         idx, this._version, this._type, this._label, this._theme,
         this.getAttribute('indicators'), this.getAttribute('volshading'),
-        this._positions.length, this._posVersion || 0,
+        this._positions.length, this._posVersion || 0, THEMES_VERSION,
       ].join('|');
       if (key === this._legendKey) return;
       this._legendKey = key;

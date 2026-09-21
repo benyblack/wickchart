@@ -6,6 +6,9 @@ import {
   THEMES, registerTheme, getTheme, resolveThemeName, THEMES_VERSION,
 } from '../src/core.js';
 
+const { WickChart } = await import('../src/wick-chart.js');
+const P = WickChart.prototype;
+
 test('registerTheme merges a partial palette over the dark base', () => {
   assert.equal(registerTheme('matrix', { bg: '#000000', up: '#22c55e' }), true);
   const m = getTheme('matrix');
@@ -96,4 +99,48 @@ test('re-registering a built-in name replaces it globally', () => {
 test('the main entry re-exports registerTheme', async () => {
   const mod = await import('../src/wick-chart.js');
   assert.equal(typeof mod.registerTheme, 'function');
+});
+
+/* ------------------- element wiring (pr56 duck-chart idiom) ------------------- */
+
+test('the theme attribute stores the raw value — no eager coercion', () => {
+  registerTheme('matrix', {});
+  const chart = { _invalidate() {} };
+  chart.attributeChangedCallback = P.attributeChangedCallback.bind(chart);
+  chart.attributeChangedCallback('theme', null, 'matrix');
+  assert.equal(chart._theme, 'matrix');
+  chart.attributeChangedCallback('theme', null, 'nope');
+  assert.equal(chart._theme, 'nope', 'an unregistered name stays raw for late registration');
+  chart.attributeChangedCallback('theme', null, null);
+  assert.equal(chart._theme, 'dark');
+});
+
+test('_palette lazily resolves an unregistered name against THEMES.dark', () => {
+  const prev = globalThis.getComputedStyle;
+  globalThis.getComputedStyle = () => ({ getPropertyValue: () => '' });
+  try {
+    const chart = { _theme: 'nope' };
+    chart._palette = P._palette.bind(chart);
+    const pal = chart._palette();
+    assert.equal(pal.bg, THEMES.dark.bg);
+    assert.equal(pal.up, THEMES.dark.up);
+  } finally {
+    if (prev === undefined) delete globalThis.getComputedStyle;
+    else globalThis.getComputedStyle = prev;
+  }
+});
+
+test('registering the raw name mid-flight invalidates the version-keyed palette', () => {
+  const prev = globalThis.getComputedStyle;
+  globalThis.getComputedStyle = () => ({ getPropertyValue: () => '' });
+  try {
+    const chart = { _theme: 'nope' };
+    chart._palette = P._palette.bind(chart);
+    assert.equal(chart._palette().bg, THEMES.dark.bg, 'before registration the dark base shows');
+    registerTheme('nope', { bg: '#123123' });
+    assert.equal(chart._palette().bg, '#123123', 'the version bump rebuilds from the new registration');
+  } finally {
+    if (prev === undefined) delete globalThis.getComputedStyle;
+    else globalThis.getComputedStyle = prev;
+  }
 });

@@ -72,7 +72,7 @@
  * Serializable chart snapshot (see `getState()` / `setState()`).
  * @typedef {object} ChartState
  * @property {'candles'|'line'|'area'|'bars'|'hollow'|'heikin'} [type]
- * @property {'dark'|'light'} [theme]
+ * @property {'dark'|'light'|string} [theme] theme name — 'dark', 'light', or any registerTheme() name
  * @property {boolean} [log]
  * @property {boolean} [stats]
  * @property {boolean} [profile] volume profile overlay (POC + value area)
