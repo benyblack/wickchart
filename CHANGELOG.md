@@ -26,6 +26,34 @@ its own commit with the why.
 
 ---
 
+## 2.2.0 — 2026-09-21 — ichimoku
+
+One batch: the cloud (#82). npm goes 2.1.0 → 2.2.0 (minor: new additive
+surface — the `ichimoku` built-in and the `fill` channel on indicator
+compute results). wickchart-ai 0.1.1 (description token refresh only —
+its `set_indicators` validation is registry-driven at runtime, so 0.1.0
+already works against this core). Main-entry budget 66 → 67 KB gz, the
+raise in its own commit with the why.
+
+- **The `ichimoku` overlay.** Tenkan/kijun midpoints over their
+  high/low windows, the two senkou spans displaced `disp` bars into the
+  future, chikou (close) displaced the same distance back. Defaults
+  9/26/52/26, positional token `ichimoku:7/22/44/22`. The senkou arrays
+  run `disp` bars past the last bar and the renderer projects them into
+  the right margin — the same +1 slack the view gives data, so the
+  default margin shows the leading edge and scrolling right reveals the
+  full cloud.
+- **The kumo, two-tone.** Indicator compute results can now return
+  `fill: {a, b}`; `normalizeIndicatorResult` validates and passes it
+  through (JSDoc-typed in the public surface, and the worker compute
+  path inherits it for free). The overlay renderer paints it as
+  run-batched translucent polygons — palette `up` where `a ≥ b`, `down`
+  otherwise, null gaps split runs — the vol-regime flushing pattern
+  applied between two series.
+- **Streaming:** ichimoku joins `ONLINE_SKIP` — forward-displaced
+  arrays can't align with the tail patcher, so live ticks take the full
+  recompute (the supertrend behavior).
+
 ## 2.1.0 — 2026-09-21 — the polish track
 
 The roadmap's remaining open items, delivered as one batch (#80, per-step
