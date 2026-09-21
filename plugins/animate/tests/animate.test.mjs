@@ -19,7 +19,7 @@ class FakeChart {
     const d = this._d, last = d[d.length - 1];
     if (last && b.time === last.time) d[d.length - 1] = b;
     else if (!last || b.time > last.time) d.push(b);
-    else { const i = d.findIndex((x) => x.time === b.time); if (i >= 0) d[i] = b; else d.splice(0, 0, b); }
+    else { const i = d.findIndex((x) => x.time > b.time); d.splice(i < 0 ? d.length : i, 0, b); }
   }
 }
 
@@ -75,4 +75,31 @@ test('prefers-reduced-motion is a hard passthrough', () => {
     assert.equal(chart.writes.length, 1);
     assert.equal(chart.writes[0].close, 107);
   } finally { delete globalThis.matchMedia; }
+});
+
+test('explicit duration 0 is honored (0 disables, not 180)', () => {
+  installRaf();
+  const chart = new FakeChart();
+  const anim = attachAnimate(chart, { duration: 0 });
+  assert.equal(anim._dur, 0);
+  anim.detach();
+  const def = attachAnimate(chart);
+  assert.equal(def._dur, 180);   // default
+  def.detach();
+  assert.equal(attachAnimate(chart, { duration: 4000 })._dur, 1500); // clamped
+});
+
+test('double-attach throws; detach is idempotent and never clobbers a foreign wrapper', () => {
+  installRaf();
+  const chart = new FakeChart();
+  const orig = chart.update;
+  const anim = attachAnimate(chart);
+  assert.throws(() => attachAnimate(chart), TypeError);
+  const foreign = function (b) { return FakeChart.prototype.update.call(chart, b); };
+  chart.update = foreign;   // another plugin wraps over us
+  anim.detach();
+  assert.equal(chart.update, foreign); // ours is gone, theirs intact
+  anim.detach();            // second detach: no-op
+  assert.equal(chart.update, foreign);
+  chart.update = orig;
 });

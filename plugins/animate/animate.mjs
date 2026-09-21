@@ -44,7 +44,8 @@ export class Animate {
       throw new TypeError('attachAnimate(chart): the chart element is required');
     }
     this._chart = chart;
-    this._dur = Math.max(0, Math.min(DUR_MAX, Number(opts.duration) || DEF_DURATION));
+    const dur = opts.duration == null ? DEF_DURATION : Number(opts.duration);
+    this._dur = Math.max(0, Math.min(DUR_MAX, Number.isFinite(dur) ? dur : DEF_DURATION));
     this._easeFn = typeof opts.easing === 'function' ? opts.easing : (EASINGS[opts.easing] || EASINGS['ease-out']);
     this._volume = opts.volume === true;
     this._es = null; // the active ease: { time, from, to, real, cur, t0 }
@@ -57,10 +58,15 @@ export class Animate {
       else if (this._mq.addListener) this._mq.addListener(this._onMq);
     }
     // wrap update on the instance: every tick source funnels through it
+    if (chart.update && chart.update._wickAnimate) {
+      throw new TypeError('attachAnimate(chart): an animate plugin is already attached to this chart');
+    }
     this._orig = chart.update;
     this._hadOwn = Object.prototype.hasOwnProperty.call(chart, 'update');
     this._prevOwn = this._hadOwn ? chart.update : null;
-    chart.update = (bar) => this._tick(bar);
+    this._wrap = (bar) => this._tick(bar);
+    this._wrap._wickAnimate = this;
+    chart.update = this._wrap;
   }
 
   detach() {
@@ -70,7 +76,9 @@ export class Animate {
       if (this._mq.removeEventListener) this._mq.removeEventListener('change', this._onMq);
       else if (this._mq.removeListener) this._mq.removeListener(this._onMq);
     }
-    if (this._hadOwn) c.update = this._prevOwn; else delete c.update;
+    if (c.update === this._wrap) {
+      if (this._hadOwn) c.update = this._prevOwn; else delete c.update;
+    }
   }
 
   /* ---------------- internals ---------------- */
