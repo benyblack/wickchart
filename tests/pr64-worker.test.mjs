@@ -211,7 +211,7 @@ test('the worker branch serves cached epoch results across streamed ticks', asyn
   const chart = makeWorkerChart();
   try {
     const first = chart._indicatorSeries(smaEntry);
-    assert.deepEqual(first, { lines: [], histogram: null }, 'pending renders nothing (safe empty)');
+    assert.deepEqual(first, { lines: [], histogram: null, fill: null }, 'pending renders nothing (safe empty)');
     assert.equal(chart.tasks.filter((t) => t.type === 'epoch').length, 1, 'data shipped once');
     await Promise.resolve(); // let the reply land
     assert.ok(chart._workerCache.map['ind:sma:20'], 'result cached');
@@ -284,7 +284,7 @@ test('failures: rejected computes negative-cache, stale replies force a data res
       return Promise.reject(Object.assign(new Error('stale'), { stale: true }));
     };
     const bad = { name: 'sma', def: smaEntry.def, params: { period: 999 }, key: 'sma:999' };
-    assert.deepEqual(chart._indicatorSeries(bad), { lines: [], histogram: null });
+    assert.deepEqual(chart._indicatorSeries(bad), { lines: [], histogram: null, fill: null });
     await Promise.resolve();
     await Promise.resolve();
     assert.ok('ind:sma:999' in chart._workerCache.map, 'negative-cached for this epoch');

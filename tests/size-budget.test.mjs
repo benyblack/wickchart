@@ -37,7 +37,12 @@ import { gzipSync } from 'node:zlib';
 // and every 0.x hab-* alias), landing the entry at 60.3 KB. Ceiling 66
 // per ROADMAP-V2.md — headroom for the additive 1.8/1.9 track (spread
 // pane, i18n, presets, downsampling) to inherit into 2.x.
-const BUDGET_GZ = 66 * 1024; // 66 KB gzipped for the whole main entry
+//
+// 66→67 KB: ichimoku. calcIchimoku itself rides the donchian window helper,
+// but the kumo needs new main-entry surface: a fill channel through
+// normalizeIndicatorResult and overlay drawing that projects
+// forward-displaced series into the right margin. Landed at 66.5 KB.
+const BUDGET_GZ = 67 * 1024; // 67 KB gzipped for the whole main entry
 const FILES = ['src/core.js', 'src/wick-chart.js'];
 
 // the drawing toolkit is opt-in bytes; it earns its own, smaller budget

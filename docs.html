@@ -344,7 +344,7 @@ chart.<span class="attr">clearSeries</span>(<span class="str">'eth'</span>);</pr
           <tr><th>Attribute</th><th>Default</th><th>Description</th></tr>
           <tr><td><code>theme</code></td><td><code>dark</code></td><td><code>dark</code> or <code>light</code></td></tr>
           <tr><td><code>type</code></td><td><code>candles</code></td><td>Series type — see <a href="#types">Series types</a></td></tr>
-          <tr><td><code>indicators</code></td><td><code>volume</code>*</td><td>Space/comma list: <code>sma:20 ema:50 bb:20 vwap supertrend:10/3 rsi:14 macd:12/26/9 stoch:14/3 atr:14 obv cci:20 wr:14 volume</code>, registered names, or <a href="#wickscript">WickScript</a> expressions. <code>""</code> disables all.</td></tr>
+          <tr><td><code>indicators</code></td><td><code>volume</code>*</td><td>Space/comma list: <code>sma:20 ema:50 bb:20 vwap supertrend:10/3 ichimoku:9/26/52/26 rsi:14 macd:12/26/9 stoch:14/3 atr:14 obv cci:20 wr:14 volume</code>, registered names, or <a href="#wickscript">WickScript</a> expressions. <code>""</code> disables all.</td></tr>
           <tr><td><code>label</code></td><td>–</td><td>Legend text (e.g. <code>"BTC · 1h"</code>)</td></tr>
           <tr><td><code>log</code></td><td>off</td><td>Logarithmic price scale</td></tr>
           <tr><td><code>auto</code></td><td>on</td><td>Follow the right edge while streaming</td></tr>
@@ -398,6 +398,7 @@ WickChart.registerStrings('fr', {
           <tr><td><code>supertrend</code></td><td><code>:10/3</code> period/mult</td><td>Trend line that flips with ATR bands</td></tr>
           <tr><td><code>donchian</code></td><td><code>:20</code> period</td><td>High/low channel (3 lines)</td></tr>
           <tr><td><code>keltner</code></td><td><code>:20/2</code> period/mult</td><td>EMA ± ATR channel (3 lines)</td></tr>
+          <tr><td><code>ichimoku</code></td><td><code>:9/26/52/26</code> tenkan/kijun/senkouB/disp</td><td>5 lines + shaded kumo; senkou spans displaced ahead</td></tr>
           <tr><td><code>rsi</code></td><td><code>:14</code></td><td>Own pane, 30/70 guides</td></tr>
           <tr><td><code>macd</code></td><td><code>:12/26/9</code></td><td>Own pane: histogram + 2 lines</td></tr>
           <tr><td><code>stoch</code></td><td><code>:14/3</code> period/smooth</td><td>Own pane: %K + %D, 20/80 guides</td></tr>
@@ -1054,7 +1055,7 @@ nav.<span class="attr">detach</span>();  <span class="cmt">// everything detache
 
     /* ---------- indicators ---------- */
     {
-      const presets = ['volume', 'sma:20 ema:50 volume', 'sma:20 bb:20 rsi:14 macd:12/26/9 volume', 'vwap supertrend:10/3 stoch:14/3 atr:14 volume', ''];
+      const presets = ['volume', 'sma:20 ema:50 volume', 'sma:20 bb:20 rsi:14 macd:12/26/9 volume', 'vwap supertrend:10/3 stoch:14/3 atr:14 volume', 'ichimoku volume', ''];
       seg($('ind-seg'), presets.map((p, i) => [i, p === '' ? 'none' : p]), 1,
         (i) => $('ex-ind').setAttribute('indicators', presets[i]));
     }

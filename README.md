@@ -308,7 +308,7 @@ chart.setData([
 | ------------- | ---------- | ------------------------------------------------------------------ |
 | `theme`       | `dark`     | `dark` or `light`                                                   |
 | `type`        | `candles`  | `candles`, `line`, `area`, `bars` (OHLC), `hollow` (hollow up-candles), `heikin` (Heikin-Ashi) |
-| `indicators`  | `volume`*  | Space/comma-separated: `sma:20`, `ema:50`, `bb:20`, `vwap`, `supertrend:10/3`, `donchian:20`, `keltner:20/2`, `rsi:14`, `macd:12/26/9`, `stoch:14/3`, `atr:14`, `obv`, `cci:20`, `wr:14`, `volume`, or any registered indicator |
+| `indicators`  | `volume`*  | Space/comma-separated: `sma:20`, `ema:50`, `bb:20`, `vwap`, `supertrend:10/3`, `donchian:20`, `keltner:20/2`, `ichimoku:9/26/52/26`, `rsi:14`, `macd:12/26/9`, `stoch:14/3`, `atr:14`, `obv`, `cci:20`, `wr:14`, `volume`, or any registered indicator |
 | `label`       | –          | Text shown in the legend (e.g. `"BTC · 1h"`)                        |
 | `log`         | off        | Logarithmic price scale                                             |
 | `auto`        | on         | Keep the right edge pinned to the latest bar while streaming        |
@@ -333,6 +333,7 @@ chart.setData([
 | `supertrend` | overlay | `period`, `mult` (10, 3) | ATR trend line, breaks at flips |
 | `donchian` | overlay | `period` (20) | high/low channel + mid |
 | `keltner` | overlay | `period`, `mult` (20, 2) | EMA ± mult×ATR channel |
+| `ichimoku` | overlay | `tenkan`, `kijun`, `senkouB`, `disp` (9, 26, 52, 26) | 5 lines + shaded kumo; senkou spans projected `disp` bars ahead |
 | `rsi` | pane | `period` (14) | fixed 0–100 scale, 30/70 guides |
 | `macd` | pane | `fast/slow/signal` (12/26/9) | 2 lines + histogram |
 | `stoch` | pane | `period`, `smooth` (14, 3) | %K + %D, fixed 0–100, 20/80 guides |
