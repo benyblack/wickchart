@@ -99,12 +99,13 @@ export class Animate {
     }
     // forming-bar tick: start (or retarget) the ease from the current display
     const es = this._es;
+    const from = es && es.time === bar.time ? es.cur : last.close;
     this._es = {
       time: bar.time,
-      from: last.close,
+      from,
       to: Number(bar.close),
       real: bar,
-      cur: last.close,
+      cur: from,
       t0: null,
     };
     if (!this._rafId) this._rafId = raf((t) => this._frame(t));
