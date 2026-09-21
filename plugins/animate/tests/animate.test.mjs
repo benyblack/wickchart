@@ -15,6 +15,9 @@ class FakeChart {
   get data() { return this._d; }
   setData(b) { this._d = b; }
   update(b) {
+    // the real chart normalizes seconds → ms inside update() (1e11 cutoff);
+    // only seconds-format bars are copied, so ms-bar identity asserts hold
+    if (b && typeof b.time === 'number' && b.time < 1e11) b = { ...b, time: b.time * 1000 };
     this.writes.push(b);
     const d = this._d, last = d[d.length - 1];
     if (last && b.time === last.time) d[d.length - 1] = b;
@@ -330,4 +333,56 @@ test('volume eases too when asked', () => {
   assert.ok(w.volume > 50 && w.volume < 100); // eased, not teleported
   frame(1180); // k>=1 → the true bar
   assert.equal(chart.writes[chart.writes.length - 1].volume, 100);
+});
+
+test('interpolated frames never carry the closed flag; the final true bar does', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart);
+  const last = chart.data[chart.data.length - 1];
+  const bar = tickOn(last.time, 110, { closed: true }); // the feed's final flag
+  chart.update(bar);
+  assert.equal(chart.writes.length, 0); // ease started, nothing written yet
+  frame(1000); // k=0 from-value frame
+  frame(1090); // k=0.5
+  assert.ok(chart.writes.length >= 2);
+  assert.ok(chart.writes.every((w) => w.closed === undefined));
+  frame(1180); // k>=1 → the exact true bar, flag intact
+  const fin = chart.writes[chart.writes.length - 1];
+  assert.equal(fin, bar);
+  assert.equal(fin.closed, true);
+});
+
+test('a setData that swaps the dataset cancels the ease even when the last time matches', () => {
+  installRaf();
+  const chart = new FakeChart();
+  const anim = attachAnimate(chart);
+  const last = chart.data[chart.data.length - 1];
+  chart.update(tickOn(last.time, 110));
+  frame(1000); // ease active
+  // symbol switch: a fresh dataset that ends at the SAME candle time
+  const swap = bars.map((b) => ({ ...b }));
+  swap[swap.length - 1] = { ...last, close: 55 };
+  chart.setData(swap);
+  const writes = chart.writes.length;
+  frame(1090); frame(1180);
+  assert.equal(chart.writes.length, writes); // stale ease cancelled — nothing written
+  assert.equal(chart.data[chart.data.length - 1].close, 55); // new data intact
+  anim.detach(); // the flush must not resurrect the stale bar either
+  assert.equal(chart.writes.length, writes);
+  assert.equal(chart.data[chart.data.length - 1].close, 55);
+});
+
+test('seconds-format ticks classify as forming-bar ticks, not backfills', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart);
+  const last = chart.data[chart.data.length - 1];
+  chart.update(tickOn(last.time / 1000, 110)); // seconds form of the same candle
+  assert.equal(chart.writes.length, 0);        // not passed through — an ease started
+  assert.equal(rafQ.length, 1);
+  frame(1000);
+  frame(1180); // completes on the true bar
+  assert.equal(chart.data[chart.data.length - 1].close, 110);
+  assert.equal(chart.data[chart.data.length - 1].time, last.time); // normalized on write
 });

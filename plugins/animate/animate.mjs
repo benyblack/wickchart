@@ -49,7 +49,7 @@ export class Animate {
     this._dur = Math.max(0, Math.min(DUR_MAX, Number.isFinite(dur) ? dur : DEF_DURATION));
     this._easeFn = typeof opts.easing === 'function' ? opts.easing : (EASINGS[opts.easing] || EASINGS['ease-out']);
     this._volume = opts.volume === true;
-    this._es = null; // the active ease: { time, from, to, real, cur, volFrom, volTo, curVol, t0 }
+    this._es = null; // the active ease: { time, from, to, real, cur, volFrom, volTo, curVol, data, t0 }
     this._rafId = 0;
     this._detached = false;
     this._mq = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -92,26 +92,31 @@ export class Animate {
     if (this._dur <= 0 || this._reduced() || !bar || bar.close == null || bar.close === '' || !isFinite(Number(bar.close))) {
       return this._pass(bar);
     }
+    // the chart normalizes seconds → ms inside update() (its 1e11 cutoff);
+    // classify against the normalized value or a seconds tick reads as a
+    // backfill and silently skips the ease
+    const t = bar.time instanceof Date ? bar.time.getTime() : bar.time < 1e11 ? bar.time * 1000 : bar.time;
+    if (!Number.isFinite(t)) return this._pass(bar);
     const d = this._chart.data;
     const last = d && d[d.length - 1];
-    if (!last || bar.time > last.time) {
+    if (!last || t > last.time) {
       // a new bar is a fact: flush any active ease to its true bar, then append
       this._flush();
       return this._pass(bar);
     }
-    if (bar.time < last.time) {
+    if (t < last.time) {
       // backfill / historical correction: a fact, never eased; the forming
       // bar is untouched, so an active ease keeps running
       return this._pass(bar);
     }
     // forming-bar tick: start (or retarget) the ease from the current display
     const es = this._es;
-    const from = es && es.time === bar.time ? es.cur : last.close;
-    const volFrom = this._volume && es && es.time === bar.time && typeof es.curVol === 'number'
+    const from = es && es.time === t ? es.cur : last.close;
+    const volFrom = this._volume && es && es.time === t && typeof es.curVol === 'number'
       ? es.curVol
       : (typeof last.volume === 'number' ? last.volume : Number(bar.volume));
     this._es = {
-      time: bar.time,
+      time: t,
       from,
       to: Number(bar.close),
       real: bar,
@@ -119,6 +124,7 @@ export class Animate {
       volFrom,
       volTo: Number(bar.volume),
       curVol: volFrom,
+      data: d, // the array the ease belongs to — setData builds a fresh one
       t0: null,
     };
     if (!this._rafId) this._rafId = raf((t) => this._frame(t));
@@ -131,7 +137,10 @@ export class Animate {
     if (!es) return; // stale frame after flush/detach
     const d = this._chart.data;
     const last = d && d[d.length - 1];
-    if (!last || last.time !== es.time) { this._es = null; return; } // data moved
+    // data moved: a setData replaces the array even when the new dataset
+    // ends at the same candle time (symbol switch on one timeframe) — a
+    // timestamp check alone can't see that
+    if (d !== es.data || !last || last.time !== es.time) { this._es = null; return; }
     if (es.t0 == null) es.t0 = t;
     const k = (t - es.t0) / this._dur;
     if (k >= 1) {
@@ -140,6 +149,11 @@ export class Animate {
     }
     es.cur = es.from + (es.to - es.from) * this._easeFn(k);
     const b = { ...es.real, close: es.cur };
+    // `closed` is the feed's "this candle is final" flag: the chart advances
+    // its closed-bar cursor and evaluates close-mode alerts against a closed
+    // front bar, so an interpolated frame must never carry it — only the
+    // final exact write (es.real) may.
+    delete b.closed;
     if (this._volume && isFinite(es.volFrom) && isFinite(es.volTo)) {
       es.curVol = es.volFrom + (es.volTo - es.volFrom) * this._easeFn(k);
       b.volume = es.curVol;
@@ -159,6 +173,6 @@ export class Animate {
     this._rafId = 0;
     const d = this._chart.data;
     const last = d && d[d.length - 1];
-    if (last && last.time === es.time) this._pass(es.real);
+    if (d === es.data && last && last.time === es.time) this._pass(es.real);
   }
 }
