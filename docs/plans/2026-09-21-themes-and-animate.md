@@ -728,34 +728,52 @@ git commit -m "feat(animate): eased frames on the forming bar, final true bar, w
 
 **Step 1: Write the failing test**
 
+> Re-scoped after the Task 6 review: eased frames *replace* the forming bar in `chart.data`, so in every normally-reachable state `last.close` already IS the displayed eased value — the original test's arithmetic (linear 105 under ease-out) and its "jumps backward to 100" premise were both wrong. The `es.cur` change is kept as defense-in-depth for divergent states (any write path that bypasses `_tick`), and the failing test constructs that divergence directly.
+
 Append:
 
 ```js
-test('a second tick mid-ease retargets from the displayed value — no jump', () => {
+test('retarget starts from the displayed ease value, not a stale data read', () => {
   installRaf();
   const chart = new FakeChart();
   attachAnimate(chart);
   const last = chart.data[chart.data.length - 1];
   chart.update(tickOn(last.time, 110));
   frame(1000);
-  frame(1090); // displaying 105
-  chart.update(tickOn(last.time, 120)); // retarget: 105 → 120
-  frame(1180); // new t0 → k=0 → writes 105 again, never jumps
-  const w = chart.writes[chart.writes.length - 1];
-  assert.equal(w.close, 105);
-  frame(1270); // k=0.5 → 112.5
+  frame(1090); // ease-out k=0.5 → displaying 108.75
+  // construct the divergent state the guard exists for: data says 102
+  // (a write path that bypassed _tick), the ease is at 108.75
+  chart._d[chart._d.length - 1] = { ...chart._d[chart._d.length - 1], close: 102 };
+  chart.update(tickOn(last.time, 120)); // retarget
+  frame(1180); // new t0, k=0 → writes the from value
+  assert.equal(chart.writes[chart.writes.length - 1].close, 108.75); // never jumps back to 102
   frame(1360); // k>=1 → the true bar
-  const fin = chart.writes[chart.writes.length - 1];
-  assert.equal(fin.close, 120);
+  assert.equal(chart.data[chart.data.length - 1].close, 120);
+});
+
+test('a second tick mid-ease retargets without a jump — monotonic closes', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart);
+  const last = chart.data[chart.data.length - 1];
+  chart.update(tickOn(last.time, 110));
+  frame(1000);                       // k=0 → 100
+  frame(1090);                       // ease-out k=0.5 → 108.75
+  chart.update(tickOn(last.time, 120)); // retarget from 108.75
+  frame(1180);                       // new t0, k=0 → 108.75 again (no jump)
+  assert.equal(chart.writes[chart.writes.length - 1].close, 108.75);
+  frame(1270);                       // k=0.5 → 108.75 + 11.25 × 0.875 ≈ 118.59
+  frame(1360);                       // k=1 → the true bar
+  assert.equal(chart.writes[chart.writes.length - 1].close, 120);
   const closes = chart.writes.map((w2) => w2.close);
   assert.ok(closes.every((c, i) => i === 0 || c >= closes[i - 1])); // monotonic
 });
 ```
 
-**Step 2: Run to verify it fails**
+**Step 2: Run to verify the first test fails**
 
 Run: `node --test plugins/animate/tests/animate.test.mjs`
-Expected: FAIL — with `from: last.close` the second ease starts from 100, the k=0 frame after retarget writes 100 (a visible jump backward from 105).
+Expected: the divergence test FAILs — with `from: last.close` the retargeted ease starts from the stale 102, not the displayed 108.75. The monotonicity test passes already (normal-flow `last.close === es.cur`) — it is a behavior pin, not the TDD driver.
 
 **Step 3: Implement**
 
