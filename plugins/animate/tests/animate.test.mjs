@@ -289,3 +289,45 @@ test('an older-time tick (backfill) passes through un-eased, ease unaffected', (
   assert.equal(chart.data[chart.data.length - 1].close, 110);
   assert.ok(chart.writes.length > writesBefore);
 });
+
+test('setData mid-ease cancels silently — no eased write after the data moved', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart);
+  const last = chart.data[chart.data.length - 1];
+  chart.update(tickOn(last.time, 110));
+  frame(1000);
+  chart.setData(bars.slice(0, 5)); // the dataset moved under the ease
+  const writes = chart.writes.length;
+  frame(1090);
+  frame(1180);
+  assert.equal(chart.writes.length, writes); // nothing written, loop dead
+  frame(1360); // drain any nulled slot
+  assert.equal(rafQ.length, 0);
+});
+
+test('detach mid-ease flushes the true bar', () => {
+  installRaf();
+  const chart = new FakeChart();
+  const anim = attachAnimate(chart);
+  const last = chart.data[chart.data.length - 1];
+  chart.update(tickOn(last.time, 110));
+  frame(1000);
+  frame(1090); // displaying 108.75
+  anim.detach();
+  assert.equal(chart.writes[chart.writes.length - 1].close, 110);
+});
+
+test('volume eases too when asked', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart, { volume: true });
+  const last = chart.data[chart.data.length - 1]; // volume 50
+  chart.update(tickOn(last.time, 110, { volume: 100 }));
+  frame(1000); // k=0
+  frame(1090); // k=0.5
+  const w = chart.writes[chart.writes.length - 1];
+  assert.ok(w.volume > 50 && w.volume < 100); // eased, not teleported
+  frame(1180); // k>=1 → the true bar
+  assert.equal(chart.writes[chart.writes.length - 1].volume, 100);
+});

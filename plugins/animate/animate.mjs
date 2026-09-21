@@ -107,12 +107,18 @@ export class Animate {
     // forming-bar tick: start (or retarget) the ease from the current display
     const es = this._es;
     const from = es && es.time === bar.time ? es.cur : last.close;
+    const volFrom = this._volume && es && es.time === bar.time && typeof es.curVol === 'number'
+      ? es.curVol
+      : (typeof last.volume === 'number' ? last.volume : Number(bar.volume));
     this._es = {
       time: bar.time,
       from,
       to: Number(bar.close),
       real: bar,
       cur: from,
+      volFrom,
+      volTo: Number(bar.volume),
+      curVol: volFrom,
       t0: null,
     };
     if (!this._rafId) this._rafId = raf((t) => this._frame(t));
@@ -134,6 +140,10 @@ export class Animate {
     }
     es.cur = es.from + (es.to - es.from) * this._easeFn(k);
     const b = { ...es.real, close: es.cur };
+    if (this._volume && isFinite(es.volFrom) && isFinite(es.volTo)) {
+      es.curVol = es.volFrom + (es.volTo - es.volFrom) * this._easeFn(k);
+      b.volume = es.curVol;
+    }
     b.high = Math.max(es.real.high, es.cur);
     b.low = Math.min(es.real.low, es.cur);
     this._pass(b);
