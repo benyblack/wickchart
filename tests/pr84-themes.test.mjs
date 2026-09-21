@@ -163,3 +163,35 @@ test('reportColors is unchanged for built-in theme names', async () => {
   assert.equal(pal.bg, '#0d1117');
   assert.equal(pal.up, '#16c784');
 });
+
+test('prototype-key and unregistered names fall back safely in report colors', async () => {
+  const { reportColors } = await import('../src/report.js');
+  for (const name of ['toString', 'constructor', 'solarized']) {
+    const pal = reportColors({ nodeType: 1, theme: name });
+    assert.equal(pal.bg, '#0d1117');
+    assert.equal(pal.up, '#16c784'); // palette intact, never undefined-corrupted
+  }
+});
+
+test('a light registered theme keeps its own muted color', async () => {
+  const { reportColors } = await import('../src/report.js');
+  registerTheme('sun', { bg: '#ffffff', text: '#999999' }, { base: 'light' });
+  const pal = reportColors({ nodeType: 1, theme: 'sun' });
+  assert.equal(pal.light, true);
+  assert.equal(pal.muted, '#999999');   // theme's text, not built-in #6b7280
+  assert.equal(pal.panel, '#f4f6f9');   // panel still flips
+});
+
+test('_palette guards against prototype-key theme names on the render path', () => {
+  const prev = globalThis.getComputedStyle;
+  globalThis.getComputedStyle = () => ({ getPropertyValue: () => '' });
+  try {
+    const chart = { _theme: 'toString' };
+    chart._palette = P._palette.bind(chart);
+    const pal = chart._palette();
+    assert.equal(pal.bg, THEMES.dark.bg);
+  } finally {
+    if (prev === undefined) delete globalThis.getComputedStyle;
+    else globalThis.getComputedStyle = prev;
+  }
+});

@@ -23,7 +23,7 @@ import {
   clamp, isNum, numberFmt, fmtCompact, autoPrecision, niceStep, hexToRgba,
   FONT_STACK, axisFont, pillFont, roundRectPath,
   TIME_STEPS, HOUR, DAY, toMs, zoneOffset, hhmm, fmtDay, fmtMonth, fmtYear, fmtFull,
-  THEMES, mergeOlderData, detectGaps, registerTheme, THEMES_VERSION,
+  THEMES, mergeOlderData, detectGaps, registerTheme, getTheme, THEMES_VERSION,
   parseIndicators, normalizeIndicatorResult, BUILTIN_INDICATORS,
   positionPnl, positionPnlPct, checkAlertCross, computeStats, safeColor,
   SERIES_TYPES, calcHeikinAshi, buildColumns, computeVolumeProfile,
@@ -1484,7 +1484,7 @@ class WickChart extends HTMLElementBase {
     _palette() {
       const palKey = this._theme + ' ' + THEMES_VERSION;
       if (this._pal && this._palKey === palKey) return this._pal;
-      const base = THEMES[this._theme] || THEMES.dark;
+      const base = getTheme(this._theme) || THEMES.dark;
       const cs = getComputedStyle(this);
       const get = (name, fallback) => cs.getPropertyValue('--wick-' + name).trim() || fallback;
       const pal = {};

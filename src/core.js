@@ -453,7 +453,7 @@ export function registerTheme(name, palette, opts = {}) {
  * @param {string} name
  * @returns {typeof THEMES.dark|undefined} */
 export function getTheme(name) {
-  return THEMES[name];
+  return name != null && Object.hasOwn(THEMES, name) ? THEMES[name] : undefined;
 }
 
 /** Resolve a `theme` attribute value: any registered name passes through,
