@@ -1,0 +1,70 @@
+// PR #84 — registerTheme(): named custom themes over the built-ins, the
+// theme-attribute resolver, and report colors for a registered theme.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  THEMES, registerTheme, getTheme, resolveThemeName, THEMES_VERSION,
+} from '../src/core.js';
+
+test('registerTheme merges a partial palette over the dark base', () => {
+  assert.equal(registerTheme('matrix', { bg: '#000000', up: '#22c55e' }), true);
+  const m = getTheme('matrix');
+  assert.equal(m.bg, '#000000');
+  assert.equal(m.up, '#22c55e');
+  assert.equal(m.down, THEMES.dark.down);   // inherited
+  assert.equal(m.grid, THEMES.dark.grid);   // inherited
+});
+
+test('registerTheme drops unknown keys', () => {
+  registerTheme('clean', { bg: '#111111', wow: '#ffffff' });
+  assert.equal('wow' in getTheme('clean'), false);
+});
+
+test('overlay: a single string expands; an array pads with the base colors', () => {
+  registerTheme('mono', { overlay: '#cccccc' });
+  const o = getTheme('mono').overlay;
+  assert.equal(o.length, THEMES.dark.overlay.length);
+  assert.ok(o.every((c) => c === '#cccccc'));
+
+  registerTheme('two', { overlay: ['#111111'] });
+  const p = getTheme('two').overlay;
+  assert.equal(p[0], '#111111');
+  assert.equal(p[1], THEMES.dark.overlay[1]);
+});
+
+test('volAlpha coerces to a number; garbage falls back to the base value', () => {
+  registerTheme('half', { volAlpha: '0.5' });
+  assert.equal(getTheme('half').volAlpha, 0.5);
+  registerTheme('bad', { volAlpha: 'nope' });
+  assert.equal(getTheme('bad').volAlpha, THEMES.dark.volAlpha);
+});
+
+test('opts.base selects the merge base', () => {
+  registerTheme('sun', { up: '#111111' }, { base: 'light' });
+  assert.equal(getTheme('sun').bg, THEMES.light.bg);
+});
+
+test('invalid registrations return false and register nothing', () => {
+  assert.equal(registerTheme('', {}), false);
+  assert.equal(registerTheme('x', null), false);
+  assert.equal(getTheme('x'), undefined);
+});
+
+test('re-registering overwrites and bumps THEMES_VERSION', () => {
+  const v0 = THEMES_VERSION;
+  registerTheme('twice', { bg: '#101010' });
+  registerTheme('other', {});
+  registerTheme('twice', { bg: '#202020' });
+  assert.equal(getTheme('twice').bg, '#202020');
+  assert.ok(THEMES_VERSION > v0);
+});
+
+test('resolveThemeName passes registered names, falls back to dark', () => {
+  registerTheme('matrix', {});
+  assert.equal(resolveThemeName('matrix'), 'matrix');
+  assert.equal(resolveThemeName('light'), 'light');
+  assert.equal(resolveThemeName('dark'), 'dark');
+  assert.equal(resolveThemeName('nope'), 'dark');
+  assert.equal(resolveThemeName(''), 'dark');
+  assert.equal(resolveThemeName(null), 'dark');
+});

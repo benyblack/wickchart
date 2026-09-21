@@ -409,6 +409,58 @@ export const THEMES = {
 };
 
 /* ------------------------------------------------------------------ *
+ * Named theme registry
+ * ------------------------------------------------------------------ */
+
+/** Bumped by every registerTheme() so palette caches can key on it. */
+export let THEMES_VERSION = 1;
+
+/**
+ * Register a named theme over a built-in base. The merged palette is stored
+ * in THEMES itself, so every THEMES[name] lookup — the `theme` attribute,
+ * _palette(), report export — resolves it. Re-registering a name overwrites
+ * and bumps THEMES_VERSION. Unknown palette keys are dropped; a string
+ * `overlay` expands to the base length, an array pads with the base colors.
+ * @param {string} name
+ * @param {Record<string, string|number|string[]>} palette
+ * @param {{ base?: string }} [opts]
+ * @returns {boolean}
+ */
+export function registerTheme(name, palette, opts = {}) {
+  if (typeof name !== 'string' || !name || !palette || typeof palette !== 'object') return false;
+  const base = THEMES[opts.base] ? opts.base : 'dark';
+  const out = { ...THEMES[base] };
+  for (const k of Object.keys(out)) {
+    if (!(k in palette)) continue;
+    const v = palette[k];
+    if (k === 'overlay') {
+      if (typeof v === 'string' && v) out.overlay = out.overlay.map(() => v);
+      else if (Array.isArray(v) && v.length) out.overlay = out.overlay.map((c, i) => v[i] || c);
+    } else if (k === 'volAlpha') {
+      const n = parseFloat(v);
+      if (isNum(n)) out.volAlpha = n;
+    } else if (typeof v === 'string' && v) {
+      out[k] = v;
+    }
+  }
+  THEMES[name] = out;
+  THEMES_VERSION++;
+  return true;
+}
+
+/** Look up a registered (or built-in) theme palette by name.
+ * @param {string} name */
+export function getTheme(name) {
+  return THEMES[name];
+}
+
+/** Resolve a `theme` attribute value: any registered name passes through,
+ *  anything else falls back to 'dark'. @param {string|null} val */
+export function resolveThemeName(val) {
+  return val && THEMES[val] ? val : 'dark';
+}
+
+/* ------------------------------------------------------------------ *
  * Indicators (pure functions over arrays)
  * ------------------------------------------------------------------ */
 
