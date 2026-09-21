@@ -26,9 +26,9 @@ its own commit with the why.
 
 ---
 
-## Unreleased — the 2.1 polish track
+## 2.1.0 — 2026-09-21 — the polish track
 
-The roadmap's remaining open items, delivered as one batch (per-step
+The roadmap's remaining open items, delivered as one batch (#80, per-step
 commits; every judgment call recorded in
 `docs/decisions/2.1.0-polish-track.md`):
 
