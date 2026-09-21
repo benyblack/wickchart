@@ -253,3 +253,39 @@ test('a second tick mid-ease retargets without a jump — monotonic closes', () 
   const closes = chart.writes.map((w2) => w2.close);
   assert.ok(closes.every((c, i) => i === 0 || c >= closes[i - 1])); // monotonic
 });
+
+test('a new bar flushes the previous bar’s true value, then appends', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart);
+  const last = chart.data[chart.data.length - 1];
+  chart.update(tickOn(last.time, 110));
+  frame(1000);
+  frame(1090); // displaying 108.75, mid-ease
+  const before = chart.data.length;
+  chart.update(tickOn(last.time + DT, 98)); // the next bar opened
+  const flush = chart.writes[chart.writes.length - 2];
+  const append = chart.writes[chart.writes.length - 1];
+  assert.equal(flush.close, 110); // true close of the eased bar
+  assert.equal(append.close, 98); // the new bar, un-eased
+  assert.equal(chart.data.length, before + 1);
+  const atFlush = chart.writes.length;
+  frame(1180); // flush cancelled the loop — drain; nothing may run
+  assert.equal(chart.writes.length, atFlush); // no new writes
+  assert.equal(chart.data[chart.data.length - 2].close, 110); // history holds the true close
+});
+
+test('an older-time tick (backfill) passes through un-eased, ease unaffected', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart);
+  const last = chart.data[chart.data.length - 1];
+  chart.update(tickOn(last.time, 110));
+  frame(1000);
+  const writesBefore = chart.writes.length;
+  chart.update(tickOn(last.time - DT, 100.5)); // historical correction
+  assert.equal(chart.writes[chart.writes.length - 1].close, 100.5); // passed through
+  frame(1180); // the ease still completes on the forming bar
+  assert.equal(chart.data[chart.data.length - 1].close, 110);
+  assert.ok(chart.writes.length > writesBefore);
+});

@@ -94,8 +94,15 @@ export class Animate {
     }
     const d = this._chart.data;
     const last = d && d[d.length - 1];
-    if (!last || bar.time > last.time || bar.time < last.time) {
-      return this._pass(bar); // new bars and backfills are facts (Task 8 refines)
+    if (!last || bar.time > last.time) {
+      // a new bar is a fact: flush any active ease to its true bar, then append
+      this._flush();
+      return this._pass(bar);
+    }
+    if (bar.time < last.time) {
+      // backfill / historical correction: a fact, never eased; the forming
+      // bar is untouched, so an active ease keeps running
+      return this._pass(bar);
     }
     // forming-bar tick: start (or retarget) the ease from the current display
     const es = this._es;
