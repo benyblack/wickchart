@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WickChart — Plugins</title>
-  <meta name="description" content="The wickchart plugin family: drawings, sessions, replay, compare, navigator, alerts+, layouts, signals, tape, grid, paper, narrator, coview and scenario — each a zero-dependency opt-in package, documented with a live playground." />
+  <meta name="description" content="The wickchart plugin family: drawings, sessions, replay, animate, compare, navigator, alerts+, layouts, signals, tape, grid, paper, narrator, coview and scenario — each a zero-dependency opt-in package, documented with a live playground." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -191,6 +191,7 @@
         <li><a href="#draw">draw — drawing tools<span class="pkg">draw</span></a></li>
         <li><a href="#sessions">sessions — market shading<span class="pkg">sessions</span></a></li>
         <li><a href="#replay">replay — bar replay<span class="pkg">replay</span></a></li>
+        <li><a href="#animate">animate — live-price easing<span class="pkg">animate</span></a></li>
         <li><a href="#compare">compare — overlays<span class="pkg">compare</span></a></li>
         <li><a href="#navigator">navigator — range strip<span class="pkg">navigator</span></a></li>
         <li><a href="#alerts">alerts+ — persistence<span class="pkg">alerts-plus</span></a></li>
@@ -208,7 +209,7 @@
 
     <main>
       <section id="start">
-        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">15 packages</span></h2>
+        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">16 packages</span></h2>
         <p>Everything here is an <b>opt-in package</b>, not core bytes: each plugin is a separate npm package, zero dependencies, built only on wickchart's public <a href="./docs.html#plugins">layer API</a> and kept small by its own CI gzip budget. The core chart stays lean — you pay bytes only for what you attach, and everything detaches cleanly.</p>
         <p>Every plugin follows the same shape: <code>attach</code> → configure → <code>detach</code>. Install any of them next to the chart:</p>
         <div class="codewrap"><pre class="code"><span class="tag">npm</span> install wickchart wickchart-sessions   <span class="cmt">// …or wickchart-draw, wickchart-tape, …</span>
@@ -222,6 +223,7 @@
           <tr><td><a href="#draw">wickchart-draw</a></td><td>drawing tools — trendlines, levels, rects, fibs, text; JSON in/out</td><td>~8 KB</td><td>≥ 1.4</td></tr>
           <tr><td><a href="#sessions">wickchart-sessions</a></td><td>market-session shading, DST-correct, presets or custom windows</td><td>6.3 KB</td><td>≥ 1.4</td></tr>
           <tr><td><a href="#replay">wickchart-replay</a></td><td>bar replay — step/seek/play with the future hidden</td><td>3.1 KB</td><td>≥ 1.4</td></tr>
+          <tr><td><a href="#animate">wickchart-animate</a></td><td>live-price easing — ticks glide to their new close</td><td>2.3 KB</td><td>≥ 2.3</td></tr>
           <tr><td><a href="#compare">wickchart-compare</a></td><td>normalized multi-symbol overlays with live legend chips</td><td>4.4 KB</td><td>≥ 1.4</td></tr>
           <tr><td><a href="#navigator">wickchart-navigator</a></td><td>range navigator docked below the chart</td><td>3.2 KB</td><td>≥ 1.6</td></tr>
           <tr><td><a href="#alerts">wickchart-alerts-plus</a></td><td>alert persistence, sound, desktop notifications, webhooks</td><td>2.7 KB</td><td>≥ 1.4</td></tr>
@@ -315,6 +317,17 @@ chart.<span class="attr">addEventListener</span>(<span class="str">'wick:replay'
           <wick-chart id="ex-rep" label="BTC · 1h · replay"></wick-chart>
           <div class="foot" id="rep-foot">start hides the last ~30% — step through it or press play (feed paused: replay aborts if the dataset moves underneath)</div>
         </div>
+      </section>
+
+      <section id="animate">
+        <h2>wickchart-animate <a class="anchor" href="#animate">#</a> <span class="size">2.3 KB gz</span></h2>
+        <p>Live-price easing: ticks on the forming bar glide to their new close over a short ease instead of teleporting. The engine wraps <code>update()</code> on the instance, so every tick source — app code, <code>&lt;wick-feed&gt;</code>, paper — is eased without wiring, and it is display-path only (no drawing, no new core surface). Eased frames rewrite the forming bar's close, which the body, last-price line, axis label, legend and stats all derive from; the final frame always writes the true bar, a new bar flushes the previous bar's true value, backfills pass through un-eased, retargets mid-ease continue from the display value without jumping, and <code>prefers-reduced-motion</code> is a hard passthrough.</p>
+        <div class="codewrap"><pre class="code"><span class="tag">import</span> { attachAnimate } <span class="tag">from</span> <span class="str">'wickchart-animate'</span>;
+
+<span class="tag">const</span> anim = <span class="attr">attachAnimate</span>(chart, { duration: <span class="str">180</span> });  <span class="cmt">// ms; 0 disables, max 1500</span>
+<span class="cmt">// easing: 'ease-out' (default) | 'linear' | fn(t) — volume: true eases the histogram too</span>
+anim.<span class="attr">detach</span>();</pre></div>
+        <div class="note"><b>Caveat:</b> eased frames are live ticks to the chart, so alert predicates and online indicator recompute see interpolated closes — the linear path between two real closes, at most <code>duration</code> of firing-time skew. Escape hatches: <code>duration: 0</code> or <code>detach()</code>. Peer dependency: wickchart ≥ 2.3.</div>
       </section>
 
       <section id="compare">

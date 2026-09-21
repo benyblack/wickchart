@@ -15,8 +15,8 @@
 
 **Plugins are independent packages** (`wickchart-draw`, `-sessions`,
 `-replay`, `-compare`, `-navigator`, `-alerts-plus`, `-layouts`,
-`-signals`, `-tape`, `-grid`, `-paper`) with their own versions; during 0.x
-a minor bump may rework their API.
+`-signals`, `-tape`, `-grid`, `-paper`, `-animate`) with their own versions;
+during 0.x a minor bump may rework their API.
 
 **Releasing:** a release PR (version bump + this file) → merge on green CI
 → annotated tag `vX.Y.Z` → GitHub Release → `npm publish` (the core `prepack`
@@ -25,6 +25,31 @@ builds the TypeScript declarations; plugins publish as-is). Size budgets
 its own commit with the why.
 
 ---
+
+## 2.3.0 — 2026-09-21 — named themes & animate
+
+Two shipped features. npm goes 2.2.0 → 2.3.0 (minor: new additive surface —
+the `registerTheme()` core export), and `wickchart-animate` joins the
+plugin family. The main entry landed at ~66.9 KB gz of the 67 KB ceiling —
+no budget raise.
+
+- **`registerTheme()` — named custom themes (core export from
+  `'wickchart'` / `'wickchart/core'`).** A partial palette merged over
+  `{ base: 'dark' | 'light' }` (default dark) and stored in the theme
+  registry itself, so every lookup resolves it: the `theme` attribute
+  accepts any registered name, the PNG report export follows the chart's
+  registered theme, and saved layouts / shareable presets round-trip the
+  name. `--wick-*` CSS variables still override the registry slot by slot.
+  Unknown palette keys drop; a string `overlay` expands and an array pads;
+  `volAlpha` coerces; re-registering overwrites live, built-in names
+  included.
+- **The `wickchart-animate` opt-in plugin** — live-price easing (2.3 KB
+  gz, its own 4 KB CI budget): ticks on the forming bar glide to their
+  new close. `attachAnimate(chart, { duration, easing, volume })` with
+  `.detach()`; the final frame always writes the true bar, new bars flush
+  the previous bar's true value, backfills pass through un-eased, and
+  `prefers-reduced-motion` is a hard passthrough. Peer dependency:
+  wickchart ≥ 2.3.
 
 ## 2.2.0 — 2026-09-21 — ichimoku
 

@@ -154,12 +154,13 @@ most wrappers add build steps and framework lock-in. WickChart takes the opposit
 bet:
 
 - **Zero dependencies, no build step required** (~67 KB gzipped for the whole
-  component — `core.js` + `wick-chart.js`, held to a 68 KB CI budget)
+  component — `core.js` + `wick-chart.js`, held to a 67 KB CI budget)
 - **One tag, sane defaults** — drop it in and it renders; everything optional
 - **Built-in usefulness** — crosshair + OHLC legend, last-price line, wheel zoom,
   drag pan, pinch, keyboard navigation, live streaming, PNG export
-- **Themeable with CSS variables** — two built-in themes, full control from
-  outside the component (Shadow DOM friendly)
+- **Themeable with CSS variables** — two built-in themes plus named custom
+  themes via `registerTheme()`, full control from outside the component
+  (Shadow DOM friendly)
 - **Accessible** — focusable, arrow-key crosshair, ARIA summary of the data
 
 ## Try it online
@@ -174,8 +175,8 @@ chart, the full interactive demo, the zero-JavaScript declarative page, and a
 method, event, the WickScript reference, overlays (with a live JSON
 playground), feeds, theming and framework bindings, each with runnable
 examples. The **[Plugins hub](./plugins.html)** documents every opt-in
-package — draw, sessions, replay, compare, navigator, alerts+, layouts,
-signals, tape, grid, paper — each with its own live playground. This README covers
+package — draw, sessions, replay, animate, compare, navigator, alerts+,
+layouts, signals, tape, grid, paper — each with its own live playground. This README covers
 the same ground in plain markdown.
 
 ## Run the demo locally
@@ -306,7 +307,7 @@ chart.setData([
 
 | Attribute     | Default    | Description                                                        |
 | ------------- | ---------- | ------------------------------------------------------------------ |
-| `theme`       | `dark`     | `dark` or `light`                                                   |
+| `theme`       | `dark`     | `dark`, `light`, or any `registerTheme()` name                      |
 | `type`        | `candles`  | `candles`, `line`, `area`, `bars` (OHLC), `hollow` (hollow up-candles), `heikin` (Heikin-Ashi) |
 | `indicators`  | `volume`*  | Space/comma-separated: `sma:20`, `ema:50`, `bb:20`, `vwap`, `supertrend:10/3`, `donchian:20`, `keltner:20/2`, `ichimoku:9/26/52/26`, `rsi:14`, `macd:12/26/9`, `stoch:14/3`, `atr:14`, `obv`, `cci:20`, `wr:14`, `volume`, or any registered indicator |
 | `label`       | –          | Text shown in the legend (e.g. `"BTC · 1h"`)                        |
@@ -754,7 +755,7 @@ chart.removeLayer('flags'); // detach by handle or id
 A claimed gesture delivers `move`/`up` (and `cancel` on Escape) to the layer
 while the chart suppresses pan/brush/measure. Markers, watermarks, signal
 badges — or a whole drawing toolkit — plug in without the core growing a
-single tool. The main entry is covered by a CI gzip budget (68 KB) so it
+single tool. The main entry is covered by a CI gzip budget (67 KB) so it
 stays that way.
 
 ### Drawings — the `wickchart-draw` plugin
@@ -842,6 +843,42 @@ fires `wick:replay` with the full state. Pause live feeds while replaying —
 an external `update()`/`setData()` aborts replay instead of corrupting the
 chart (the demo pauses its feed automatically). Paper trading and an equity
 curve are the planned 0.2 follow-up. Peer dependency: wickchart ≥ 1.4.
+
+### Animate — the `wickchart-animate` plugin
+
+Live-price easing as opt-in bytes (~2 KB gz, own CI budget): ticks on the
+forming bar glide to their new close over a short ease instead of
+teleporting. The engine wraps `update()` on the instance, so every tick
+source — app code, `<wick-feed>`, the paper plugin — is eased without
+wiring; it is display-path only (no drawing, no new core surface).
+
+```js
+npm install wickchart wickchart-animate   // animate is a separate opt-in package
+
+import { attachAnimate } from 'wickchart-animate';
+
+const anim = attachAnimate(chart, {
+  duration: 180,        // ms per ease (default 180, 0 disables, max 1500)
+  easing: 'ease-out',   // 'ease-out' | 'linear' | fn(t)
+  volume: false,        // ease the volume histogram too
+});
+anim.detach();
+```
+
+Eased frames rewrite the forming bar's close — the body, last-price line,
+axis label, legend and stats all derive from it, so everything glides
+together. Fidelity rules: the final frame always writes the true bar, a new
+bar flushes the previous bar's true value first, backfills and historical
+corrections pass through un-eased, a retarget mid-ease continues from the
+current display value without jumping, and `prefers-reduced-motion` is a
+hard passthrough.
+
+One caveat worth reading before you lean on it: eased frames are live ticks
+to the chart, so alert predicates and online indicator recompute see
+interpolated closes — the linear path between two real closes, at most
+`duration` of firing-time skew. If your alerts must only ever see real
+prints, `duration: 0` or `detach()` are the escape hatches. Peer
+dependency: wickchart ≥ 2.3.
 
 ### Compare — the `wickchart-compare` plugin
 
@@ -1157,6 +1194,39 @@ wick-chart {
   --wick-overlay-0: #f0b429;   /* SMA color, …-1, -2, … for more overlays */
 }
 ```
+
+### Named custom themes — `registerTheme()`
+
+Ship a palette as a named theme instead of sprinkling CSS variables over
+every element. `registerTheme(name, palette, opts?)` — exported from
+`'wickchart'` (and `'wickchart/core'`) — merges a partial palette over a
+built-in base (`{ base: 'dark' | 'light' }`, default `dark`), and the name
+then works everywhere `theme="dark"` works:
+
+```js
+import { registerTheme } from 'wickchart/core';
+
+registerTheme('matrix', {
+  bg: '#001100', text: '#00ff66', textStrong: '#00ff9d',
+  up: '#00ff66', down: '#ff2d2d', accent: '#00d0ff',  // partial — the rest
+});                                                    // comes from the base
+
+// <wick-chart theme="matrix"></wick-chart>
+```
+
+The merge is forgiving: unknown palette keys are dropped, a string `overlay`
+expands to the whole indicator palette while an array pads with the base
+colors, and `volAlpha` coerces to a number. Re-registering a name
+overwrites it live, and built-in names can be replaced the same way.
+Registration is global — every chart on the page resolves the name.
+
+The escape hatches keep working: `--wick-*` CSS variables still override
+the registered palette slot by slot, the PNG report export follows the
+chart's registered theme, and saved layouts / shareable presets round-trip
+the name. One declarative-flow note: with the HTML-attribute +
+module-script pattern the chart may render once before your script
+registers the theme — the name resolves at the next render (the `setData`
+call, the first tick), not retroactively.
 
 ## Interactions
 
