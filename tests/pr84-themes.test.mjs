@@ -68,3 +68,27 @@ test('resolveThemeName passes registered names, falls back to dark', () => {
   assert.equal(resolveThemeName(''), 'dark');
   assert.equal(resolveThemeName(null), 'dark');
 });
+
+test('prototype keys never resolve — resolveThemeName falls back to dark', () => {
+  assert.equal(resolveThemeName('constructor'), 'dark');
+  assert.equal(resolveThemeName('toString'), 'dark');
+  assert.equal(resolveThemeName(42), 'dark');
+});
+
+test('__proto__ and non-string names register nothing', () => {
+  assert.equal(registerTheme('__proto__', { bg: '#000000' }), false);
+  assert.equal(registerTheme(123, {}), false);
+  assert.equal(THEMES.bg, undefined); // prototype not polluted
+});
+
+test('an unknown opts.base falls back to dark', () => {
+  registerTheme('fb', { up: '#123456' }, { base: 'nope' });
+  assert.equal(getTheme('fb').down, THEMES.dark.down);
+});
+
+test('re-registering a built-in name replaces it globally', () => {
+  const orig = THEMES.light;
+  registerTheme('light', { bg: '#f0f0f0' });
+  assert.equal(getTheme('light').bg, '#f0f0f0');
+  THEMES.light = orig; // restore for the rest of this file's tests
+});

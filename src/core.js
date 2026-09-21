@@ -427,9 +427,10 @@ export let THEMES_VERSION = 1;
  * @returns {boolean}
  */
 export function registerTheme(name, palette, opts = {}) {
-  if (typeof name !== 'string' || !name || !palette || typeof palette !== 'object') return false;
-  const base = THEMES[opts.base] ? opts.base : 'dark';
+  if (typeof name !== 'string' || !name || name === '__proto__' || !palette || typeof palette !== 'object') return false;
+  const base = Object.hasOwn(THEMES, opts.base) ? opts.base : 'dark';
   const out = { ...THEMES[base] };
+  out.overlay = [...out.overlay];
   for (const k of Object.keys(out)) {
     if (!(k in palette)) continue;
     const v = palette[k];
@@ -449,7 +450,8 @@ export function registerTheme(name, palette, opts = {}) {
 }
 
 /** Look up a registered (or built-in) theme palette by name.
- * @param {string} name */
+ * @param {string} name
+ * @returns {typeof THEMES.dark|undefined} */
 export function getTheme(name) {
   return THEMES[name];
 }
@@ -457,7 +459,7 @@ export function getTheme(name) {
 /** Resolve a `theme` attribute value: any registered name passes through,
  *  anything else falls back to 'dark'. @param {string|null} val */
 export function resolveThemeName(val) {
-  return val && THEMES[val] ? val : 'dark';
+  return val && Object.hasOwn(THEMES, val) ? val : 'dark';
 }
 
 /* ------------------------------------------------------------------ *
