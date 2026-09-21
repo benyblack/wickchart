@@ -29,11 +29,19 @@
  */
 
 /**
+ * A translucent fill between two series of an indicator result (overlay
+ * only; the ichimoku kumo). Not tail-patchable — online streaming reseeds.
+ * @typedef {object} IndicatorFill
+ * @property {Array<number|null>} a
+ * @property {Array<number|null>} b
+ */
+
+/**
  * An indicator definition for {@link registerIndicator}.
  * @typedef {object} IndicatorDef
  * @property {'overlay'|'pane'} [kind] overlay on the price pane, or a stacked sub-pane
  * @property {Record<string, number>} [params] defaults; set via `name:p1/p2` tokens
- * @property {(bars: Bar[], params: Record<string, number>) => (Array<number|null>|{lines?: IndicatorLine[], histogram?: Array<number|null>})} compute
+ * @property {(bars: Bar[], params: Record<string, number>) => (Array<number|null>|{lines?: IndicatorLine[], histogram?: Array<number|null>, fill?: IndicatorFill})} compute
  * @property {number[]} [guides] pane only: dashed horizontal levels
  * @property {[number, number]} [range] pane only: fixed scale (else autoscale)
  * @property {'price'|'fixed1'} [fmt] legend/axis number format
@@ -774,6 +782,45 @@ export function calcDonchian(bars, period = 20) {
 }
 
 /**
+ * Ichimoku: tenkan/kijun midpoints, senkou spans displaced `disp` bars
+ * ahead (those two arrays run `disp` past the last bar — the renderer
+ * projects them into the right margin), and chikou (close displaced
+ * `disp` bars back).
+ * @param {Bar[]} bars
+ * @param {number} [tenkanP]
+ * @param {number} [kijunP]
+ * @param {number} [senkouBP]
+ * @param {number} [disp]
+ * @returns {{tenkan:Array<number|null>, kijun:Array<number|null>, senkouA:Array<number|null>, senkouB:Array<number|null>, chikou:Array<number|null>}}
+ */
+export function calcIchimoku(bars, tenkanP = 9, kijunP = 26, senkouBP = 52, disp = 26) {
+  const n = bars.length;
+  const shift = Math.max(0, Math.round(disp));
+  const tenkan = new Array(n).fill(null);
+  const kijun = new Array(n).fill(null);
+  const senkouA = new Array(n + shift).fill(null);
+  const senkouB = new Array(n + shift).fill(null);
+  const chikou = new Array(n).fill(null);
+  for (let i = 0; i < n; i++) {
+    if (i >= tenkanP - 1) {
+      const [hh, ll] = winHL(bars, i, tenkanP);
+      tenkan[i] = (hh + ll) / 2;
+    }
+    if (i >= kijunP - 1) {
+      const [hh, ll] = winHL(bars, i, kijunP);
+      kijun[i] = (hh + ll) / 2;
+      if (isNum(tenkan[i])) senkouA[i + shift] = (tenkan[i] + kijun[i]) / 2;
+      if (i >= senkouBP - 1) {
+        const [hb, lb] = winHL(bars, i, senkouBP);
+        senkouB[i + shift] = (hb + lb) / 2;
+      }
+    }
+    chikou[i] = i + shift < n ? bars[i + shift].close : null;
+  }
+  return { tenkan, kijun, senkouA, senkouB, chikou };
+}
+
+/**
  * Keltner channels: EMA mid ± mult × ATR.
  * @param {Bar[]} bars
  * @param {number} period
@@ -1150,14 +1197,16 @@ export function calcHeikinAshi(bars) {
 
 /**
  * Normalize an indicator compute() result to
- * `{ lines: [{name, values, color?}], histogram: number[] | null }`.
+ * `{ lines: [{name, values, color?}], histogram: number[] | null, fill: IndicatorFill | null }`.
  */
 export function normalizeIndicatorResult(res) {
-  if (!res) return { lines: [], histogram: null };
-  if (Array.isArray(res)) return { lines: [{ name: '', values: res }], histogram: null };
+  if (!res) return { lines: [], histogram: null, fill: null };
+  if (Array.isArray(res)) return { lines: [{ name: '', values: res }], histogram: null, fill: null };
+  const f = res.fill;
   return {
     lines: Array.isArray(res.lines) ? res.lines : [],
     histogram: Array.isArray(res.histogram) ? res.histogram : null,
+    fill: f && Array.isArray(f.a) && Array.isArray(f.b) ? f : null,
   };
 }
 
@@ -1227,6 +1276,23 @@ export const BUILTIN_INDICATORS = new Map(
             { name: 'mid', values: mid },
             { name: 'lower', values: lower },
           ],
+        };
+      },
+    },
+    ichimoku: {
+      kind: 'overlay',
+      params: { tenkan: 9, kijun: 26, senkouB: 52, disp: 26 },
+      compute: (bars, p) => {
+        const c = calcIchimoku(bars, p.tenkan, p.kijun, p.senkouB, p.disp);
+        return {
+          lines: [
+            { name: 'tenkan', values: c.tenkan },
+            { name: 'kijun', values: c.kijun },
+            { name: 'senkouA', values: c.senkouA },
+            { name: 'senkouB', values: c.senkouB },
+            { name: 'chikou', values: c.chikou },
+          ],
+          fill: { a: c.senkouA, b: c.senkouB },
         };
       },
     },

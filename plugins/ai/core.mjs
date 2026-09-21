@@ -32,7 +32,7 @@ export const AI_TOOLS = [
   {
     tool: 'set_indicators',
     description:
-      'Replace the indicators. Tokens: sma:20 ema:50 bb:20 vwap supertrend:10/3 donchian:20 keltner:20 rsi:14 macd:12/26/9 stoch:14/3 atr:14 obv cci:20 wr:14 volume, @hexcolor suffixes, or WickScript expressions like expr:{close - sma(close,20)} / pexpr:{rsi(close,14)}. Empty string clears all.',
+      'Replace the indicators. Tokens: sma:20 ema:50 bb:20 vwap supertrend:10/3 donchian:20 keltner:20 ichimoku:9/26/52/26 rsi:14 macd:12/26/9 stoch:14/3 atr:14 obv cci:20 wr:14 volume, @hexcolor suffixes, or WickScript expressions like expr:{close - sma(close,20)} / pexpr:{rsi(close,14)}. Empty string clears all.',
     args: { indicators: 'string — space/comma-separated tokens' },
   },
   {

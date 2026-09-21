@@ -47,15 +47,16 @@ const REGISTRY = new Map(BUILTIN_INDICATORS);
 const WORKER_MIN_BARS = 50000;
 /** Returned while an off-thread compute is in flight: no lines yet, and —
  *  like a failed compute — every renderer draws nothing. */
-const PENDING_SERIES = { lines: [], histogram: null };
+const PENDING_SERIES = { lines: [], histogram: null, fill: null };
 /**
  * Built-ins a streamed tick can update by recomputing a bounded tail with
  * the SAME batch definition (window indicators exactly, recursive ones
  * converge geometrically). Excluded: obv/vwap are cumulative over all
- * history, supertrend is a path-dependent state machine — no tail can
- * patch those; they keep the full-recompute behavior.
+ * history, supertrend is a path-dependent state machine, ichimoku's
+ * senkou spans run past the last bar so no tail lines up with the data —
+ * all keep the full-recompute behavior.
  */
-const ONLINE_SKIP = new Set(['obv', 'vwap', 'supertrend']);
+const ONLINE_SKIP = new Set(['obv', 'vwap', 'supertrend', 'ichimoku']);
 /** Tail warm-up bars per tick: past the recursion decay of any realistic
  *  period (~10×), and still ~0.1 ms of work per indicator. */
 const ONLINE_WARMUP = 400;
@@ -1719,7 +1720,7 @@ class WickChart extends HTMLElementBase {
           if (err && err.stale && wc.sent === this._epoch) {
             wc.sent = -1; // the worker no longer holds this epoch's data — resend
           } else if (wc.epoch === epoch) {
-            wc.map[k] = { lines: [], histogram: null }; // negative cache: draw nothing this epoch
+            wc.map[k] = { lines: [], histogram: null, fill: null }; // negative cache: draw nothing this epoch
           }
         });
     }
@@ -2555,42 +2556,86 @@ class WickChart extends HTMLElementBase {
       /* overlay indicators */
       this._ind.overlays.forEach((entry, idx) => {
         const res = this._indicatorSeries(entry);
+        // a series may run past the last bar (ichimoku's forward-displaced
+        // senkou spans); that tail is drawn from index space straight into
+        // the right margin, with the same +1 slack the view allows data
+        const iMax = Math.ceil(this._view.rightIndex) + 1;
+        // sample one series over columns when zoomed out, else by index —
+        // `s` may outlength the data by a displacement
+        const each = (s, fn) => {
+          const end = Math.min(s.length - 1, iMax);
+          if (cols) {
+            for (const c of cols) fn(c.x, s[c.i1]);
+            for (let i = d.length; i <= end; i++) fn(this._xFor(i), s[i]);
+          } else {
+            for (let i = i0; i <= end; i++) fn(this._xFor(i), s[i]);
+          }
+        };
+        if (res.fill) {
+          // the kumo: translucent fill between the two series, two-tone by
+          // which one leads; same-sign runs flush as one polygon (the
+          // vol-regime shading pattern), null gaps split runs
+          const { a, b } = res.fill;
+          let run = null;
+          const flush = () => {
+            if (!run || run.p.length < 2) return;
+            const t = run.up ? 1 : 2;
+            const u = run.up ? 2 : 1;
+            ctx.fillStyle = hexToRgba(run.up ? pal.up : pal.down, 0.13);
+            ctx.beginPath();
+            for (let k = 0; k < run.p.length; k++) {
+              if (k) ctx.lineTo(run.p[k][0], yOf(run.p[k][t]));
+              else ctx.moveTo(run.p[k][0], yOf(run.p[k][t]));
+            }
+            for (let k = run.p.length - 1; k >= 0; k--) ctx.lineTo(run.p[k][0], yOf(run.p[k][u]));
+            ctx.closePath();
+            ctx.fill();
+          };
+          const step = (x, i) => {
+            const va = a[i];
+            const vb = b[i];
+            if (!isNum(va) || !isNum(vb)) {
+              flush();
+              run = null;
+              return;
+            }
+            const up = va >= vb;
+            if (run && run.up !== up) {
+              flush();
+              run = null;
+            }
+            if (!run) run = { up, p: [] };
+            run.p.push([x, va, vb]);
+          };
+          if (cols) {
+            for (const c of cols) step(c.x, c.i1);
+            for (let i = d.length; i <= Math.min(Math.min(a.length, b.length) - 1, iMax); i++) {
+              step(this._xFor(i), i);
+            }
+          } else {
+            for (let i = i0; i <= Math.min(Math.min(a.length, b.length) - 1, iMax); i++) step(this._xFor(i), i);
+          }
+          flush();
+        }
         res.lines.forEach((ln, li) => {
           const s = ln.values;
           if (!s) return;
-          const color = this._lineColor(entry, ln, pal, idx + li);
-          ctx.strokeStyle = color;
+          ctx.strokeStyle = this._lineColor(entry, ln, pal, idx + li);
           ctx.lineWidth = 1.5;
           ctx.lineJoin = 'round';
           ctx.beginPath();
           let started = false;
-          if (cols) {
-            for (const c of cols) {
-              const val = s[c.i1];
-              if (!isNum(val)) {
-                started = false;
-                continue;
-              }
-              if (!started) {
-                ctx.moveTo(c.x, yOf(val));
-                started = true;
-              } else ctx.lineTo(c.x, yOf(val));
+          each(s, (x, val) => {
+            if (!isNum(val)) {
+              started = false;
+              return;
             }
-          } else {
-            for (let i = i0; i <= i1; i++) {
-              const val = s[i];
-              if (!isNum(val)) {
-                started = false;
-                continue;
-              }
-              const x = this._xFor(i);
-              const y = yOf(val);
-              if (!started) {
-                ctx.moveTo(x, y);
-                started = true;
-              } else ctx.lineTo(x, y);
+            if (started) ctx.lineTo(x, yOf(val));
+            else {
+              ctx.moveTo(x, yOf(val));
+              started = true;
             }
-          }
+          });
           ctx.stroke();
         });
         ctx.lineWidth = 1;

@@ -286,7 +286,7 @@ test('worker-arrived bases seed the online path, then ticks patch them in place'
     chart.fires = [];
 
     const got = chart._indicatorSeries(entry);
-    assert.deepEqual(got, { lines: [], histogram: null }, 'pending first');
+    assert.deepEqual(got, { lines: [], histogram: null, fill: null }, 'pending first');
     await new Promise((r) => setTimeout(r, 0));
     const base = chart._workerCache.map['ind:sma:20'];
     assert.ok(base, 'worker base arrived');

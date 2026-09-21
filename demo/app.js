@@ -55,6 +55,7 @@ const INDICATORS = [
   { id: 'vwap', label: 'VWAP', color: '#22d3ee' },
   { id: 'supertrend:10/3', label: 'ST 10', color: '#fb7185' },
   { id: 'donchian:20', label: 'DON 20', color: '#94a3b8' },
+  { id: 'ichimoku', label: 'ICHI', color: '#c084fc' },
   { id: 'rsi:14', label: 'RSI 14', color: '#a78bfa' },
   { id: 'macd:12/26/9', label: 'MACD', color: '#34d399' },
   { id: 'stoch:14/3', label: 'STOCH', color: '#fbbf24' },
