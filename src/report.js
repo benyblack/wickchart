@@ -21,7 +21,7 @@
  * as ('url' | 'blob' | 'canvas').
  * ========================================================================== */
 
-import { computeStats } from './core.js';
+import { computeStats, getTheme } from './core.js';
 
 /* ---------------- layout constants (CSS px, pre-scale) ---------------- */
 
@@ -95,6 +95,14 @@ const PALETTES = {
 export function reportColors(chart, theme = 'auto') {
   const key = theme === 'light' || theme === 'dark' ? theme : 'auto';
   const pal = { ...PALETTES[key === 'auto' ? 'dark' : key] };
+  if (key === 'auto') {
+    const name = chart && chart.theme;
+    const t = name && name !== 'light' && name !== 'dark' ? getTheme(name) : null;
+    if (t) {
+      pal.bg = t.bg; pal.text = t.textStrong; pal.muted = t.text;
+      pal.up = t.up; pal.down = t.down; pal.accent = t.accent;
+    }
+  }
   if (key === 'auto' && typeof getComputedStyle === 'function' && chart && chart.nodeType) {
     const cs = getComputedStyle(chart);
     const v = (name, fb) => cs.getPropertyValue(name).trim() || fb;

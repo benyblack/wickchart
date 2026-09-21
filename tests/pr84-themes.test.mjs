@@ -144,3 +144,22 @@ test('registering the raw name mid-flight invalidates the version-keyed palette'
     else globalThis.getComputedStyle = prev;
   }
 });
+
+/* ------------------- report colors follow the registry ------------------- */
+
+test('reportColors follows a registered theme in auto mode', async () => {
+  const { reportColors } = await import('../src/report.js');
+  registerTheme('matrix', { bg: '#000000', up: '#22c55e', down: '#ef4444' });
+  const pal = reportColors({ nodeType: 1, theme: 'matrix' });
+  assert.equal(pal.bg, '#000000');
+  assert.equal(pal.up, '#22c55e');
+  assert.equal(pal.down, '#ef4444');
+  assert.equal(pal.light, false); // luminance('#000000') === 0
+});
+
+test('reportColors is unchanged for built-in theme names', async () => {
+  const { reportColors } = await import('../src/report.js');
+  const pal = reportColors({ nodeType: 1, theme: 'dark' });
+  assert.equal(pal.bg, '#0d1117');
+  assert.equal(pal.up, '#16c784');
+});
