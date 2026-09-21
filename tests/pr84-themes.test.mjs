@@ -195,3 +195,19 @@ test('_palette guards against prototype-key theme names on the render path', () 
     else globalThis.getComputedStyle = prev;
   }
 });
+
+test('--wick-* CSS variables override the registered theme', () => {
+  registerTheme('cssvar', { bg: '#000000' });
+  const prev = globalThis.getComputedStyle;
+  globalThis.getComputedStyle = () => ({ getPropertyValue: (n) => (n === '--wick-bg' ? '#ffcc00' : '') });
+  try {
+    const chart = { _theme: 'cssvar' };
+    chart._palette = P._palette.bind(chart);
+    const pal = chart._palette();
+    assert.equal(pal.bg, '#ffcc00');             // the CSS variable wins
+    assert.equal(pal.up, getTheme('cssvar').up); // registry value survives underneath
+  } finally {
+    if (prev === undefined) delete globalThis.getComputedStyle;
+    else globalThis.getComputedStyle = prev;
+  }
+});

@@ -55,7 +55,7 @@ export class Animate {
     this._mq = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
     this._onMq = null;
     if (this._mq) {
-      this._onMq = () => { if (this._mq.matches) this._flush(); };
+      this._onMq = () => { if (this._mq.matches) this._flush(); if (this._chart.isConnected === false) this.detach(); };
       if (this._mq.addEventListener) this._mq.addEventListener('change', this._onMq);
       else if (this._mq.addListener) this._mq.addListener(this._onMq);
     }

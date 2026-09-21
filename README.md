@@ -1218,6 +1218,8 @@ The merge is forgiving: unknown palette keys are dropped, a string `overlay`
 expands to the whole indicator palette while an array pads with the base
 colors, and `volAlpha` coerces to a number. Re-registering a name
 overwrites it live, and built-in names can be replaced the same way.
+Re-registering a built-in name does not change report export colors — the
+report keeps its own tuned light/dark palettes.
 Registration is global — every chart on the page resolves the name.
 
 The escape hatches keep working: `--wick-*` CSS variables still override
