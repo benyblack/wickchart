@@ -19,7 +19,7 @@ class FakeChart {
     const d = this._d, last = d[d.length - 1];
     if (last && b.time === last.time) d[d.length - 1] = b;
     else if (!last || b.time > last.time) d.push(b);
-    else { const i = d.findIndex((x) => x.time > b.time); d.splice(i < 0 ? d.length : i, 0, b); }
+    else { const i = d.findIndex((x) => x.time >= b.time); if (i >= 0 && d[i].time === b.time) d[i] = b; else d.splice(i < 0 ? d.length : i, 0, b); }
   }
 }
 
@@ -102,4 +102,54 @@ test('double-attach throws; detach is idempotent and never clobbers a foreign wr
   anim.detach();            // second detach: no-op
   assert.equal(chart.update, foreign);
   chart.update = orig;
+});
+
+test('eases the forming-bar close and lands on the exact true bar', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart); // default 180ms ease-out
+  const last = chart.data[chart.data.length - 1];
+  chart.update(tickOn(last.time, 110));
+  assert.equal(chart.writes.length, 0); // nothing until the first frame
+
+  frame(1000); // t0 captured; k=0 writes the from value
+  frame(1090); // k=0.5 → 105
+  assert.ok(chart.writes[chart.writes.length - 1].close > 100);
+  assert.ok(chart.writes[chart.writes.length - 1].close < 110);
+  frame(1180); // k>=1 → the true bar, exactly
+  const w = chart.writes[chart.writes.length - 1];
+  assert.equal(w.close, 110);
+  assert.equal(w.high, 101);
+  assert.equal(w.volume, 60);
+  assert.equal(rafQ.length, 0); // loop stopped
+  assert.equal(chart.data[chart.data.length - 1].close, 110);
+});
+
+test('wick guard: the eased body never escapes high/low', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart, { easing: 'linear' }); // linear → k=0.5 is exactly the midpoint
+  const last = chart.data[chart.data.length - 1];
+  // a feed bar whose close exceeds its own high (malformed but must not break)
+  chart.update(tickOn(last.time, 110, { high: 100 }));
+  frame(1000); // t0 captured; k=0 writes the from value
+  frame(1090); // k=0.5 → eased close 105 > high 100
+  const w = chart.writes[chart.writes.length - 1];
+  assert.equal(w.close, 105);
+  assert.equal(w.high, 105); // clamped up around the eased body
+  assert.equal(w.low, 99);   // and down
+});
+
+test('a detached wrapper is a hard passthrough (chain re-exposure safety)', () => {
+  installRaf();
+  const chart = new FakeChart();
+  const anim = attachAnimate(chart);
+  const stale = chart.update;
+  anim.detach();
+  chart.update = stale; // a foreign chain re-exposes our wrapper
+  const last = chart.data[chart.data.length - 1];
+  chart.update(tickOn(last.time, 111));
+  assert.equal(chart.writes.length, 1);
+  assert.equal(chart.writes[0].close, 111);
+  assert.equal(rafQ.length, 0);
 });

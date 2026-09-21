@@ -27,12 +27,8 @@ const EASINGS = {
 const DEF_DURATION = 180;
 const DUR_MAX = 1500;
 
-const raf = typeof requestAnimationFrame === 'function'
-  ? (fn) => requestAnimationFrame(fn)
-  : (fn) => setTimeout(() => fn(Date.now()), 16);
-const caf = typeof cancelAnimationFrame === 'function'
-  ? (id) => cancelAnimationFrame(id)
-  : clearTimeout;
+const raf = (fn) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(fn) : setTimeout(() => fn(Date.now()), 16));
+const caf = (id) => (typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame(id) : clearTimeout(id));
 
 export function attachAnimate(chart, opts = {}) {
   return new Animate(chart, opts);
@@ -43,6 +39,11 @@ export class Animate {
     if (!chart || typeof chart.update !== 'function' || !('data' in chart)) {
       throw new TypeError('attachAnimate(chart): the chart element is required');
     }
+    // double-attach guard first — validate before side effects (the mq
+    // listener below must not leak on a failed attach)
+    if (chart.update && chart.update._wickAnimate) {
+      throw new TypeError('attachAnimate(chart): an animate plugin is already attached to this chart');
+    }
     this._chart = chart;
     const dur = opts.duration == null ? DEF_DURATION : Number(opts.duration);
     this._dur = Math.max(0, Math.min(DUR_MAX, Number.isFinite(dur) ? dur : DEF_DURATION));
@@ -50,6 +51,7 @@ export class Animate {
     this._volume = opts.volume === true;
     this._es = null; // the active ease: { time, from, to, real, cur, t0 }
     this._rafId = 0;
+    this._detached = false;
     this._mq = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
     this._onMq = null;
     if (this._mq) {
@@ -58,9 +60,6 @@ export class Animate {
       else if (this._mq.addListener) this._mq.addListener(this._onMq);
     }
     // wrap update on the instance: every tick source funnels through it
-    if (chart.update && chart.update._wickAnimate) {
-      throw new TypeError('attachAnimate(chart): an animate plugin is already attached to this chart');
-    }
     this._orig = chart.update;
     this._hadOwn = Object.prototype.hasOwnProperty.call(chart, 'update');
     this._prevOwn = this._hadOwn ? chart.update : null;
@@ -79,6 +78,7 @@ export class Animate {
     if (c.update === this._wrap) {
       if (this._hadOwn) c.update = this._prevOwn; else delete c.update;
     }
+    this._detached = true;
   }
 
   /* ---------------- internals ---------------- */
@@ -88,10 +88,48 @@ export class Animate {
   _pass(bar) { return this._orig.call(this._chart, bar); }
 
   _tick(bar) {
+    if (this._detached) return this._pass(bar);
     if (this._dur <= 0 || this._reduced() || !bar || !isFinite(Number(bar.close))) {
       return this._pass(bar);
     }
-    return this._pass(bar); // easing branches land in Tasks 6–9
+    const d = this._chart.data;
+    const last = d && d[d.length - 1];
+    if (!last || bar.time > last.time || bar.time < last.time) {
+      return this._pass(bar); // new bars and backfills are facts (Task 8 refines)
+    }
+    // forming-bar tick: start (or retarget) the ease from the current display
+    const es = this._es;
+    this._es = {
+      time: bar.time,
+      from: last.close,
+      to: Number(bar.close),
+      real: bar,
+      cur: last.close,
+      t0: null,
+    };
+    if (!this._rafId) this._rafId = raf((t) => this._frame(t));
+    return undefined;
+  }
+
+  _frame(t) {
+    this._rafId = 0;
+    const es = this._es;
+    if (!es) return; // stale frame after flush/detach
+    const d = this._chart.data;
+    const last = d && d[d.length - 1];
+    if (!last || last.time !== es.time) { this._es = null; return; } // data moved
+    if (es.t0 == null) es.t0 = t;
+    const k = (t - es.t0) / this._dur;
+    if (k >= 1) {
+      this._es = null;
+      return this._pass(es.real); // the final frame is always the true bar
+    }
+    es.cur = es.from + (es.to - es.from) * this._easeFn(k);
+    const b = { ...es.real, close: es.cur };
+    b.high = Math.max(es.real.high, es.cur);
+    b.low = Math.min(es.real.low, es.cur);
+    this._pass(b);
+    this._rafId = raf((tt) => this._frame(tt));
   }
 
   /** Write the true bar of an active ease (detach / reduced-motion / append). */
