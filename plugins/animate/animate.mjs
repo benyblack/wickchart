@@ -70,15 +70,15 @@ export class Animate {
 
   detach() {
     const c = this._chart;
+    this._detached = true;
+    if (c.update === this._wrap) {
+      if (this._hadOwn) c.update = this._prevOwn; else delete c.update;
+    }
     this._flush();
     if (this._mq && this._onMq) {
       if (this._mq.removeEventListener) this._mq.removeEventListener('change', this._onMq);
       else if (this._mq.removeListener) this._mq.removeListener(this._onMq);
     }
-    if (c.update === this._wrap) {
-      if (this._hadOwn) c.update = this._prevOwn; else delete c.update;
-    }
-    this._detached = true;
   }
 
   /* ---------------- internals ---------------- */
@@ -89,7 +89,7 @@ export class Animate {
 
   _tick(bar) {
     if (this._detached) return this._pass(bar);
-    if (this._dur <= 0 || this._reduced() || !bar || !isFinite(Number(bar.close))) {
+    if (this._dur <= 0 || this._reduced() || !bar || bar.close == null || bar.close === '' || !isFinite(Number(bar.close))) {
       return this._pass(bar);
     }
     const d = this._chart.data;
@@ -129,7 +129,7 @@ export class Animate {
     b.high = Math.max(es.real.high, es.cur);
     b.low = Math.min(es.real.low, es.cur);
     this._pass(b);
-    this._rafId = raf((tt) => this._frame(tt));
+    if (!this._rafId) this._rafId = raf((tt) => this._frame(tt));
   }
 
   /** Write the true bar of an active ease (detach / reduced-motion / append). */

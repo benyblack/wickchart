@@ -109,15 +109,19 @@ test('eases the forming-bar close and lands on the exact true bar', () => {
   const chart = new FakeChart();
   attachAnimate(chart); // default 180ms ease-out
   const last = chart.data[chart.data.length - 1];
-  chart.update(tickOn(last.time, 110));
+  const bar = tickOn(last.time, 110);
+  chart.update(bar);
   assert.equal(chart.writes.length, 0); // nothing until the first frame
 
   frame(1000); // t0 captured; k=0 writes the from value
-  frame(1090); // k=0.5 → 105
+  assert.equal(chart.writes.length, 1); // the k=0 write commits the new tick's facts at the held close
+  assert.equal(chart.writes[0].close, 100);
+  frame(1090); // k=0.5 → ease-out 108.75
   assert.ok(chart.writes[chart.writes.length - 1].close > 100);
   assert.ok(chart.writes[chart.writes.length - 1].close < 110);
   frame(1180); // k>=1 → the true bar, exactly
   const w = chart.writes[chart.writes.length - 1];
+  assert.equal(w, bar); // identity: the exact tick object, not a copy
   assert.equal(w.close, 110);
   assert.equal(w.high, 101);
   assert.equal(w.volume, 60);
@@ -152,4 +156,64 @@ test('a detached wrapper is a hard passthrough (chain re-exposure safety)', () =
   assert.equal(chart.writes.length, 1);
   assert.equal(chart.writes[0].close, 111);
   assert.equal(rafQ.length, 0);
+});
+
+test('a nullish close passes through instead of easing toward 0', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart);
+  const last = chart.data[chart.data.length - 1];
+  chart.update({ ...tickOn(last.time, null) });
+  assert.equal(chart.writes.length, 1);        // one passthrough write
+  assert.equal(chart.writes[0].close, null);   // the exact bar, chart-side normalization decides
+  assert.equal(rafQ.length, 0);                // no ease ever started
+});
+
+test('a re-entrant update during a frame write does not spawn a second loop', () => {
+  installRaf();
+  const chart = new FakeChart();
+  // The hook must ride inside _orig — the function animate captured at attach —
+  // so it is installed on the prototype BEFORE attachAnimate; the re-entrant
+  // chart.update() models a synchronous listener firing on the frame write.
+  const orig = FakeChart.prototype.update;
+  let reentered = false;
+  FakeChart.prototype.update = function (b) {
+    orig.call(this, b);
+    if (!reentered && this === chart) { reentered = true; chart.update(tickOn(b.time, 115)); }
+  };
+  try {
+    const anim = attachAnimate(chart);
+    const last = chart.data[chart.data.length - 1];
+    chart.update(tickOn(last.time, 110)); // starts the ease
+    frame(1000); // k=0 write fires the re-entrant tick — pre-fix this leaves TWO pending frames
+    assert.equal(rafQ.length, 1);         // exactly one loop
+    frame(1090); frame(1180); frame(1360); // let the retargeted ease settle
+    anim.detach();
+    assert.equal(rafQ.length, 0);
+  } finally { FakeChart.prototype.update = orig; }
+});
+
+test('a re-entrant update during the detach flush lands as a fact, not a new ease', () => {
+  installRaf();
+  const chart = new FakeChart();
+  // Same _orig seam as above, but armed only once the ease is active so the
+  // re-entrant chart.update() fires from the FLUSH write, not a frame write.
+  const orig = FakeChart.prototype.update;
+  let armed = false;
+  let reentered = false;
+  FakeChart.prototype.update = function (b) {
+    orig.call(this, b);
+    if (armed && !reentered && this === chart) { reentered = true; chart.update(tickOn(b.time, 120)); }
+  };
+  try {
+    const anim = attachAnimate(chart);
+    const last = chart.data[chart.data.length - 1];
+    chart.update(tickOn(last.time, 110));
+    frame(1000); // ease active (the k=0 write; the hook is inert — not armed yet)
+    armed = true;
+    anim.detach(); // flush writes the true bar; the re-entrant tick must bypass _tick entirely
+    frame(2000);   // drain: a live uncanceled loop would run here and reschedule
+    assert.equal(rafQ.length, 0);
+    assert.equal(chart.data[chart.data.length - 1].close, 120); // landed as a fact
+  } finally { FakeChart.prototype.update = orig; }
 });
