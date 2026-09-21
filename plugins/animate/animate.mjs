@@ -49,7 +49,7 @@ export class Animate {
     this._dur = Math.max(0, Math.min(DUR_MAX, Number.isFinite(dur) ? dur : DEF_DURATION));
     this._easeFn = typeof opts.easing === 'function' ? opts.easing : (EASINGS[opts.easing] || EASINGS['ease-out']);
     this._volume = opts.volume === true;
-    this._es = null; // the active ease: { time, from, to, real, cur, t0 }
+    this._es = null; // the active ease: { time, from, to, real, cur, volFrom, volTo, curVol, t0 }
     this._rafId = 0;
     this._detached = false;
     this._mq = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;

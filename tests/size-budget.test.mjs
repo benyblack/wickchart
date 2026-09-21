@@ -119,6 +119,12 @@ const SCENARIO_FILES = ['plugins/scenario/core.mjs', 'plugins/scenario/scenario.
 const AI_BUDGET_GZ = 5 * 1024;
 const AI_FILES = ['plugins/ai/core.mjs', 'plugins/ai/ai.mjs'];
 
+// animate: live-price easing — the update() wrapper and the eased frame
+// writer, all display-path (no drawing, no new core surface).
+// Landed at 2.3 KB gz.
+const ANIMATE_BUDGET_GZ = 4 * 1024;
+const ANIMATE_FILES = ['plugins/animate/animate.mjs'];
+
 // The gzip budgets measure canonical content: CRLF is a checkout artifact
 // (core.autocrlf on Windows), not bytes anyone ships — the registry and CI
 // both normalize to LF, so the test does too before measuring.
@@ -347,5 +353,19 @@ test('wickchart-ai plugin stays under its (smaller) gzip budget', () => {
   assert.ok(
     total <= AI_BUDGET_GZ,
     `wickchart-ai is ${(total / 1024).toFixed(1)} KB gz, budget is ${AI_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
+  );
+});
+
+test('wickchart-animate plugin stays under its (smaller) gzip budget', () => {
+  let total = 0;
+  const parts = [];
+  for (const f of ANIMATE_FILES) {
+    const n = gz(f);
+    total += n;
+    parts.push(`${f}: ${(n / 1024).toFixed(1)} KB gz`);
+  }
+  assert.ok(
+    total <= ANIMATE_BUDGET_GZ,
+    `wickchart-animate is ${(total / 1024).toFixed(1)} KB gz, budget is ${ANIMATE_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
   );
 });
