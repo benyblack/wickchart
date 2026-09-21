@@ -65,6 +65,8 @@ function makeChart() {
     _minSpacing() {
       return 1;
     },
+    _updateLegend() {}, // refreshed by the hover hot path (_hoverAt)
+    _paintOverlay() {}, // and the crosshair overlay repaint
     _fire(name, detail) {
       this.events.push({ name, detail });
     },
@@ -366,7 +368,10 @@ test('xToTime: inverse of timeToX incl. extrapolation, null guards', () => {
 test('layers are painted under the crosshair and asked before every built-in gesture', () => {
   const src = read('src/wick-chart.js');
   const paint = src.indexOf('if (this._layers.length) this._drawLayers(ctx, pal, ly, d);');
-  const cross = src.indexOf('/* crosshair */');
+  // the crosshair left the main render pass for the offscreen hover layer;
+  // _render refreshes that layer last (the no-data early return also clears
+  // it — search from the layer paint onward), so ordering semantics hold
+  const cross = src.indexOf('this._paintOverlay();', paint);
   const lastPrice = src.indexOf('last price line + pill');
   assert.ok(paint > 0 && lastPrice > 0 && cross > paint, 'layer paint sits after content, before crosshair');
   const pd = src.slice(src.indexOf('_pointerDown(e) {'), src.indexOf('_pointerDown(e) {') + 1500);

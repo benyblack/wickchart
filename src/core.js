@@ -905,12 +905,18 @@ export function buildColumns(bars, i0, i1, xOf, plotRight) {
         high: b.high,
         low: b.low,
         close: b.close,
+        // close extremes: a line/area chart at deep zoom must still show a
+        // one-bar spike inside a pixel column, not just the last close
+        cMin: b.close,
+        cMax: b.close,
         volume: b.volume || 0,
       };
     } else {
       c.i1 = i;
       if (b.high > c.high) c.high = b.high;
       if (b.low < c.low) c.low = b.low;
+      if (b.close < c.cMin) c.cMin = b.close;
+      if (b.close > c.cMax) c.cMax = b.close;
       c.close = b.close;
       c.volume += b.volume || 0;
     }
@@ -1569,7 +1575,11 @@ function parseScript(src) {
         if (!close || close.t !== ')') throw scriptErr(`missing ")" after ${name}(`);
         return { type: 'call', name, args };
       }
-      if (!SCRIPT_VARS.includes(name)) throw scriptErr(`unknown identifier "${t.v}"`);
+      // SCRIPT_VARS plus any `<series>_close`-style aux variable (the
+      // tokenizer's identifier charset already covers those names)
+      if (!SCRIPT_VARS.includes(name) && !/_(open|high|low|close|volume)$/.test(name)) {
+        throw scriptErr(`unknown identifier "${t.v}"`);
+      }
       return { type: 'var', name };
     }
     if (t.t === '(') {
@@ -1763,12 +1773,47 @@ function evalScriptCall(node, vars, n, bars) {
 }
 
 /**
+ * Time-align an auxiliary series (a second symbol, say) to a primary bar
+ * series: same length as the primary, values taken where timestamps match,
+ * NaN in the gaps. The primitive behind `setSeries()` + cross-symbol
+ * WickScript (`close - eth_close` in a pane expression).
+ * @param {Bar[]} primary
+ * @param {Bar[]} aux time-sorted
+ * @returns {{open:number[],high:number[],low:number[],close:number[],volume:number[]}}
+ */
+export function alignSeries(primary, aux) {
+  const n = primary.length;
+  const open = new Array(n).fill(NaN);
+  const high = new Array(n).fill(NaN);
+  const low = new Array(n).fill(NaN);
+  const close = new Array(n).fill(NaN);
+  const volume = new Array(n).fill(NaN);
+  if (!n) return { open, high, low, close, volume };
+  const byTime = new Map();
+  for (const b of aux) byTime.set(b.time, b);
+  for (let i = 0; i < n; i++) {
+    const p = primary[i];
+    const a = byTime.get(p.time);
+    if (!a) continue; // keep NaN where the symbols don't overlap
+    open[i] = a.open;
+    high[i] = a.high;
+    low[i] = a.low;
+    close[i] = a.close;
+    volume[i] = a.volume;
+  }
+  return { open, high, low, close, volume };
+}
+
+/**
  * Evaluate a compiled script (or a raw expression string) over bars.
  * @param {{src:string, ast:object}|string} compiled
  * @param {Bar[]} bars
+ * @param {Object<string,Bar[]>|null} [aux] named auxiliary series — each
+ *   becomes `name_open`/`name_high`/`name_low`/`name_close`/`name_volume`
+ *   script variables, time-aligned to `bars` (NaN in the gaps)
  * @returns {number[]} length `bars.length`; non-finite values become NaN
  */
-export function evalScript(compiled, bars) {
+export function evalScript(compiled, bars, aux) {
   const c = typeof compiled === 'string' ? compileScript(compiled) : compiled;
   const n = bars.length;
   const out = new Array(n).fill(NaN);
@@ -1783,6 +1828,19 @@ export function evalScript(compiled, bars) {
     hlc3: bars.map((b) => (b.high + b.low + b.close) / 3),
     ohlc4: bars.map((b) => (b.open + b.high + b.low + b.close) / 4),
   };
+  if (aux) {
+    for (const [rawName, auxBars] of Object.entries(aux)) {
+      const al = alignSeries(bars, auxBars);
+      // series names are lowercased + underscored into variable prefixes:
+      // setSeries('BTC-USDT') → btc_usdt_close
+      const v = rawName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      vars[v + '_open'] = al.open;
+      vars[v + '_high'] = al.high;
+      vars[v + '_low'] = al.low;
+      vars[v + '_close'] = al.close;
+      vars[v + '_volume'] = al.volume;
+    }
+  }
   const res = evalScriptNode(c.ast, vars, n, bars);
   const arr = Array.isArray(res) ? res : new Array(n).fill(res);
   for (let i = 0; i < n; i++) {
@@ -1805,7 +1863,9 @@ export function scriptIndicator(src, opts = {}) {
   const label = compiled.src.length > 24 ? compiled.src.slice(0, 23) + '…' : compiled.src;
   return {
     kind: opts.pane ? 'pane' : 'overlay',
-    compute: (bars) => ({ lines: [{ name: label, values: evalScript(compiled, bars) }] }),
+    compute: (bars, params) => ({
+      lines: [{ name: label, values: evalScript(compiled, bars, params && params.aux) }],
+    }),
   };
 }
 

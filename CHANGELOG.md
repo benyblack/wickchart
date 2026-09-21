@@ -26,6 +26,39 @@ its own commit with the why.
 
 ---
 
+## Unreleased — the 2.1 polish track
+
+The roadmap's remaining open items, delivered as one batch (per-step
+commits; every judgment call recorded in
+`docs/decisions/2.1.0-polish-track.md`):
+
+- **Live-render polish.** The **y-range settles** — the vertical twin of
+  2.0.2's axis-width fix: a tick that sets a new visible extreme expands
+  the scale at once, contraction waits for a sustained 750ms hold under
+  90% usage, and user window changes snap to a fresh fit. No more
+  vertical breathing on high-frequency feeds. The **crosshair moved to
+  an offscreen hover layer** — a pointer crossing the chart repaints only
+  that transparent canvas, never the series beneath (0 full renders
+  across 20 hover calls, browser-measured and e2e-pinned).
+- **Close-extreme downsampling for line/area charts at deep zoom** —
+  pixel columns already kept high/low extremes for candles; they now
+  also track close min/max, both joining the polyline, so a one-bar
+  spike inside a column survives (and drives the autoscale).
+- **Cross-symbol spread panes**: `chart.setSeries(name, bars)` registers
+  a second symbol; WickScript reads it as `name_close`/`name_high`/…
+  (time-aligned, NaN in gaps). `pexpr:{close - eth_close}` is a spread
+  pane with its own autoscaled axis.
+- **i18n string packs + `preset`**: built-in chrome (empty state, stats
+  chip, measure readout, aria label) reads from language packs — `lang`
+  with `en`/`de` built in, hosts register their own via
+  `WickChart.registerStrings()`. `preset="minimal|pro"` is a chrome
+  starting point that explicit attributes always override.
+- **Deferred (documented): the columnar typed-array main-thread store** —
+  measured, not needed (render is O(pixel columns) and flat in store
+  size; the scan it optimizes costs 10.5 ms/M bars at full zoom only;
+  the worker path already computes columnar). Reopen trigger in the
+  decision log.
+
 ## 2.0.2 — 2026-09-18
 
 The axis settles. **npm goes 2.0.0 → 2.0.2**: the 2.0.1 transparent-theme

@@ -6,3 +6,4 @@ types/
 test-results/
 playwright-report/
 .claude/
+.review/

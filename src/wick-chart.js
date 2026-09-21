@@ -68,7 +68,33 @@ const HTMLElementBase = typeof HTMLElement !== 'undefined' ? HTMLElement : class
 
 class WickChart extends HTMLElementBase {
     static get observedAttributes() {
-      return ['theme', 'type', 'log', 'auto', 'indicators', 'precision', 'label', 'stats', 'profile', 'annotations', 'volshading', 'overlays', 'brush', 'alert-evaluate', 'timezone', 'vwap-anchor', 'worker'];
+      return ['theme', 'type', 'log', 'auto', 'indicators', 'precision', 'label', 'stats', 'profile', 'annotations', 'volshading', 'overlays', 'brush', 'alert-evaluate', 'timezone', 'vwap-anchor', 'worker', 'lang', 'preset'];
+    }
+
+    /**
+     * Built-in UI strings per language (`lang` attribute selects a pack;
+     * unknown codes fall back to English). Hosts add their own via
+     * `WickChart.registerStrings('fr', {...})` — numbers and dates are
+     * already formatted by the viewer's locale through Intl.
+     */
+    static STRINGS = {
+      en: {
+        noData: 'No data', chart: 'Chart', last: 'last', percent: 'percent',
+        bars: 'bars', ret: 'ret', maxDD: 'maxDD', annVol: 'ann.vol',
+        up: 'up', dn: 'dn', vol: 'vol',
+      },
+      de: {
+        noData: 'Keine Daten', chart: 'Diagramm', last: 'letzter', percent: 'Prozent',
+        bars: 'Kerzen', ret: 'Rend.', maxDD: 'MaxDD', annVol: 'Vol.p.a.',
+        up: 'auf', dn: 'ab', vol: 'Vol',
+      },
+    };
+
+    /** Merge a host string pack into a language (creates it if new). */
+    static registerStrings(lang, pack) {
+      if (typeof lang !== 'string' || !lang || !pack || typeof pack !== 'object') return;
+      const base = WickChart.STRINGS[lang] || WickChart.STRINGS.en;
+      WickChart.STRINGS[lang] = { ...base, ...pack };
     }
 
     /**
@@ -115,6 +141,11 @@ class WickChart extends HTMLElementBase {
             /* long-press is the scrub gesture — suppress the iOS callout */
             -webkit-touch-callout: none;
           }
+          /* the offscreen hover layer: stacked over the main canvas (later
+             in DOM order), transparent, never a pointer target — the
+             crosshair repaints here alone while the chart beneath holds
+             its last full frame */
+          canvas.ov { pointer-events: none; }
           canvas.grabbing { cursor: grabbing; }
           .legend {
             position: absolute; left: 10px; top: 8px; z-index: 2;
@@ -214,6 +245,7 @@ class WickChart extends HTMLElementBase {
         </style>
         <div class="wrap" part="wrap">
           <canvas part="canvas" role="img"></canvas>
+          <canvas class="ov" aria-hidden="true"></canvas>
           <div class="legend" part="legend" aria-hidden="true"></div>
           <div class="hud" part="hud" aria-hidden="true">
             <div class="poss"></div>
@@ -224,6 +256,8 @@ class WickChart extends HTMLElementBase {
 
       this._canvas = root.querySelector('canvas');
       this._ctx = this._canvas.getContext('2d');
+      this._ovCanvas = root.querySelector('canvas.ov');
+      this._ovCtx = this._ovCanvas.getContext('2d');
       this._legend = root.querySelector('.legend');
       this._hud = root.querySelector('.hud');
       this._poss = root.querySelector('.poss');
@@ -240,6 +274,9 @@ class WickChart extends HTMLElementBase {
       this._ly = null; // last layout
       this._priceW = null; // settled price-axis width (see _axisWidth)
       this._pwNarrow = null; // pending axis shrink { want, t }
+      this._ySettle = null; // settled raw y-range { lo, hi } (see _settleRange)
+      this._yNarrow = null; // pending y contraction { lo, hi, t }
+      this._series = null; // named aux series (see setSeries)
       this._cache = { v: -1, map: {} };
       this._pal = null; // palette cache
       this._palKey = '';
@@ -262,6 +299,10 @@ class WickChart extends HTMLElementBase {
       this._annoKey = '';
       this._annoList = null;
       this._volshade = null;
+      this._lang = 'en';
+      this._strings = WickChart.STRINGS.en;
+      this._preset = null;
+      this._nodata.textContent = this._strings.noData;
 
       // co-view seams (2.0: driven by the wickchart-coview plugin — the
       // layer/state contract its presence bands and ghost crosshair use,
@@ -457,9 +498,11 @@ class WickChart extends HTMLElementBase {
           break;
         case 'type':
           this._type = SERIES_TYPES.includes(val) ? val : 'candles';
+          this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
           break;
         case 'log':
           this._log = val != null && val !== 'false';
+          this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
           break;
         case 'auto':
           this._auto = val == null || val !== 'false';
@@ -472,9 +515,24 @@ class WickChart extends HTMLElementBase {
           break;
         case 'indicators':
           this._ind = parseIndicators(val, WickChart._registry());
+          this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
           break;
         case 'worker':
           this._workerOn = val != null && val !== 'false';
+          this._invalidate();
+          break;
+        case 'lang': {
+          this._lang = (val || 'en').toLowerCase();
+          this._strings = WickChart.STRINGS[this._lang] || WickChart.STRINGS.en;
+          this._nodata.textContent = this._strings.noData;
+          this._statsKey = '';
+          this._updateAria();
+          this._invalidate();
+          break;
+        }
+        case 'preset':
+          this._preset = val;
+          this._applyPreset();
           this._invalidate();
           break;
         case 'stats':
@@ -503,6 +561,7 @@ class WickChart extends HTMLElementBase {
             }
           }
           this._overlays = ovs;
+          this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
           break;
         }
         case 'brush':
@@ -533,6 +592,29 @@ class WickChart extends HTMLElementBase {
           break;
       }
       this._invalidate();
+    }
+
+    /**
+     * `preset="minimal|pro"` — a starting point for the chrome, never an
+     * override: explicit attributes keep their word. minimal hides the
+     * legend, stats and volume pane (just the series); pro turns the stats
+     * chip and volume pane on for a dense trading view.
+     */
+    _applyPreset() {
+      const p = this._preset;
+      if (p !== 'minimal' && p !== 'pro') {
+        this._legend.style.display = '';
+        return;
+      }
+      const pro = p === 'pro';
+      if (!this.hasAttribute('stats')) {
+        this._stats = pro;
+        this._statsKey = '';
+      }
+      if (!this.hasAttribute('indicators')) {
+        this._ind = { overlays: [], panes: [], volume: pro };
+      }
+      this._legend.style.display = pro ? '' : 'none';
     }
 
     /* ------------------------------------------------------------ *
@@ -629,6 +711,7 @@ class WickChart extends HTMLElementBase {
       // a replacement dataset is a new instrument regime — re-measure the
       // axis from its own prices instead of debouncing down from the old one
       this._priceW = this._pwNarrow = null;
+      this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
       // history is not a live signal: re-baseline so close-mode alerts only
       // fire on candles that close from here on
       this._syncClosedIdx();
@@ -691,11 +774,51 @@ class WickChart extends HTMLElementBase {
       this._version++;
       this._epoch++;
       this._priceW = this._pwNarrow = null;
+      this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
       this._syncClosedIdx();
       this._hover = null;
       this._needsFit = true;
       this._noMore = false;
       this._updateAria();
+      this._invalidate();
+    }
+
+    /**
+     * Register a named auxiliary series — a second symbol — for
+     * cross-symbol WickScript. Each series becomes
+     * `<name>_open/_high/_low/_close/_volume` variables in expressions,
+     * time-aligned to the primary data (NaN where the symbols don't
+     * overlap): with `setSeries('eth', ethBars)`,
+     * `indicators="pexpr:{close - eth_close}"` is a spread pane with its
+     * own axis. Re-registering a name replaces it; an empty array clears.
+     * @param {string} name
+     * @param {Array<import('./core.js').Bar>} bars
+     */
+    setSeries(name, bars) {
+      if (typeof name !== 'string' || !name) return;
+      const norm = [];
+      if (Array.isArray(bars)) {
+        for (const b of bars) {
+          const nb = WickChart._normBar(b);
+          if (nb) norm.push(nb);
+        }
+      }
+      if (!norm.length) {
+        this.clearSeries(name);
+        return;
+      }
+      norm.sort((a, b) => a.time - b.time);
+      if (!this._series) this._series = {};
+      this._series[name] = norm;
+      this._version++;
+      this._invalidate();
+    }
+
+    /** Remove a series registered by {@link setSeries}. */
+    clearSeries(name) {
+      if (!this._series || !(name in this._series)) return;
+      delete this._series[name];
+      this._version++;
       this._invalidate();
     }
 
@@ -785,14 +908,23 @@ class WickChart extends HTMLElementBase {
       this._view.spacing = clamp(plotRight / (i1 - i0), this._minSpacing(), WickChart._MAX_SP);
       this._view.rightIndex = i1;
       this._auto = false;
+      this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
       this._clampView();
       this._invalidate();
       this._emitRange();
     }
 
-    /** Current canvas as a PNG data URL. */
+    /** Current canvas as a PNG data URL (main frame + hover overlay). */
     exportPNG() {
-      return this._canvas.toDataURL('image/png');
+      const main = this._canvas;
+      if (!this._ovCanvas) return main.toDataURL('image/png');
+      const off = document.createElement('canvas');
+      off.width = main.width;
+      off.height = main.height;
+      const c = off.getContext('2d');
+      c.drawImage(main, 0, 0);
+      c.drawImage(this._ovCanvas, 0, 0);
+      return off.toDataURL('image/png');
     }
 
     /**
@@ -1300,14 +1432,16 @@ class WickChart extends HTMLElementBase {
       const d = this._data;
       const last = d[d.length - 1];
       const prev = d[d.length - 2];
+      const S = this._strings;
+      const name = this._label || S.chart;
       if (!last) {
-        this._canvas.setAttribute('aria-label', (this._label || 'Chart') + ': no data');
+        this._canvas.setAttribute('aria-label', name + ': ' + S.noData.toLowerCase());
         return;
       }
       const pct = prev ? ((last.close - prev.close) / prev.close) * 100 : 0;
       this._canvas.setAttribute(
         'aria-label',
-        `${this._label || 'Chart'}: last ${numberFmt(this._prec(last.close)).format(last.close)}, ${pct >= 0 ? '+' : ''}${pct.toFixed(2)} percent, ${d.length} bars`
+        `${name}: ${S.last} ${numberFmt(this._prec(last.close)).format(last.close)}, ${pct >= 0 ? '+' : ''}${pct.toFixed(2)} ${S.percent}, ${d.length} ${S.bars}`
       );
     }
 
@@ -1443,8 +1577,14 @@ class WickChart extends HTMLElementBase {
         let res;
         try {
           // the session anchor rides along for indicators that observe one
-          // (vwap); the rest ignore the extra key
-          res = entry.def.compute(this._data, { ...entry.params, anchor: this._vwapAnchor });
+          // (vwap); aux series for cross-symbol scripts (see setSeries);
+          // the rest ignore the extra keys. The aux read is an inline
+          // property check so borrowed-method test stubs need no new seam.
+          res = entry.def.compute(this._data, {
+            ...entry.params,
+            anchor: this._vwapAnchor,
+            aux: this._series && this._data.length ? this._series : undefined,
+          });
         } catch (err) {
           res = null;
         }
@@ -1627,6 +1767,11 @@ class WickChart extends HTMLElementBase {
         this._canvas.width = bw;
         this._canvas.height = bh;
       }
+      // the hover overlay mirrors the main backing store 1:1
+      if (this._ovCanvas.width !== bw || this._ovCanvas.height !== bh) {
+        this._ovCanvas.width = bw;
+        this._ovCanvas.height = bh;
+      }
       this._W = W;
       this._H = H;
       this._dpr = dpr;
@@ -1648,6 +1793,7 @@ class WickChart extends HTMLElementBase {
       const target = Math.min(d.length, 150);
       this._view.spacing = clamp(plotRight / target, this._minSpacing(), WickChart._MAX_SP);
       this._view.rightIndex = d.length - 1 + this._rightMargin();
+      this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
     }
 
     _clampView() {
@@ -1692,8 +1838,8 @@ class WickChart extends HTMLElementBase {
       let hi = -Infinity;
       if (cols) {
         for (const c of cols) {
-          const h = candles ? c.high : c.close;
-          const l = candles ? c.low : c.close;
+          const h = candles ? c.high : c.cMax != null ? c.cMax : c.close;
+          const l = candles ? c.low : c.cMin != null ? c.cMin : c.close;
           if (l < lo) lo = l;
           if (h > hi) hi = h;
         }
@@ -1741,6 +1887,9 @@ class WickChart extends HTMLElementBase {
         hi += e;
         lo -= e;
       }
+      const settled = this._settleRange(lo, hi);
+      lo = settled[0];
+      hi = settled[1];
       const pad = (hi - lo) * 0.08;
       let min = lo - pad;
       let max = hi + pad;
@@ -1751,6 +1900,42 @@ class WickChart extends HTMLElementBase {
         if (max - min < 1e-9) max = min + 1;
       }
       return { min, max, useLog, rawMin: lo, rawHi: hi };
+    }
+
+    /**
+     * Y-range settle policy — the vertical twin of _axisWidth. A tick that
+     * sets a new visible extreme must expand the range at once (never
+     * clip), but re-fitting every render makes the whole chart breathe:
+     * overlays track the forming close both ways, and each new bar slides
+     * the window, so a tight per-frame re-fit oscillates. Keep a settled
+     * raw range instead: expand the violated side immediately; contract
+     * only to a range the data has occupied under 90% of, sustained for
+     * 750ms. User-driven window changes (pan/zoom/fit/setVisibleRange) and
+     * scale-input changes (type/log/indicators/overlays, bulk data) snap
+     * straight to a fresh tight fit (the y-snap field write, inlined at
+     * the call sites so borrowed-method test stubs need no new seam).
+     */
+    _settleRange(lo, hi) {
+      const s = this._ySettle;
+      if (!s) {
+        this._ySettle = { lo, hi };
+      } else if (lo < s.lo || hi > s.hi) {
+        if (lo < s.lo) s.lo = lo;
+        if (hi > s.hi) s.hi = hi;
+        this._yNarrow = null;
+      } else if (hi - lo <= (s.hi - s.lo) * 0.9) {
+        if (!this._yNarrow || this._yNarrow.lo !== lo || this._yNarrow.hi !== hi) {
+          this._yNarrow = { lo, hi, t: performance.now() };
+        } else if (performance.now() - this._yNarrow.t >= 750) {
+          this._ySettle = { lo, hi };
+          this._yNarrow = null;
+        }
+      } else {
+        // usage climbed back above 90%: the hold is broken, restart it
+        this._yNarrow = null;
+      }
+      const r = this._ySettle;
+      return [r.lo, r.hi];
     }
 
     _priceTicks(scale, height) {
@@ -1925,6 +2110,7 @@ class WickChart extends HTMLElementBase {
         this._poss.innerHTML = '';
         this._statsRow.innerHTML = '';
         this._legendKey = 'empty';
+        this._paintOverlay(); // clears any crosshair left from before the clear
         return;
       }
 
@@ -2302,7 +2488,20 @@ class WickChart extends HTMLElementBase {
         const accent = pal.accent;
         const pts = [];
         if (cols) {
-          for (const c of cols) pts.push([c.x, yOf(c.close)]);
+          // min/max downsampling: both close extremes of each pixel column
+          // join the polyline (nearest-to-previous first, so no fake
+          // sawtooth) — a one-bar spike inside a column stays visible
+          let prev = null;
+          for (const c of cols) {
+            const lo = c.cMin != null ? c.cMin : c.close;
+            const hi = c.cMax != null ? c.cMax : c.close;
+            if (lo === hi || (prev != null && Math.abs(prev - hi) < Math.abs(prev - lo))) {
+              pts.push([c.x, yOf(hi)], [c.x, yOf(lo)]);
+            } else {
+              pts.push([c.x, yOf(lo)], [c.x, yOf(hi)]);
+            }
+            prev = c.close;
+          }
         } else {
           for (let i = i0; i <= i1; i++) pts.push([this._xFor(i), yOf(d[i].close)]);
         }
@@ -2705,72 +2904,7 @@ class WickChart extends HTMLElementBase {
       /* plugin layers — above chart content, under the pointer-following UI */
       if (this._layers.length) this._drawLayers(ctx, pal, ly, d);
 
-      /* crosshair */
-      if (this._hover && this._hover.index < d.length) {
-        const h = this._hover;
-        const hx = this._xFor(h.index);
-        ctx.save();
-        ctx.strokeStyle = pal.crosshair;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        const cx = Math.round(hx) + 0.5;
-        if (cx >= 0 && cx <= plotRight) {
-          ctx.moveTo(cx, 0);
-          ctx.lineTo(cx, plotBottom);
-        }
-        const inMain = h.y <= main.y1;
-        const paneUnder = inMain
-          ? null
-          : ly.panes.find((p) => h.y >= p.y0 && h.y <= p.y1);
-        if (inMain || paneUnder) {
-          const hy = Math.round(h.y) + 0.5;
-          ctx.moveTo(0, hy);
-          ctx.lineTo(plotRight, hy);
-        }
-        ctx.stroke();
-        ctx.restore();
-
-        // price pill
-        if (inMain) {
-          this._pill(
-            plotRight + 2,
-            h.y,
-            f.format(invY(h.y)),
-            pal.crosshairBg,
-            pal.crosshairText,
-            'left'
-          );
-        } else if (paneUnder) {
-          const fmtV =
-            paneUnder.entry.def.fmt === 'fixed1'
-              ? (v) => v.toFixed(1)
-              : paneUnder.entry.def.fmt === 'compact'
-              ? (v) => fmtCompact(v)
-              : (v) => f.format(v);
-          this._pill(
-            plotRight + 2,
-            h.y,
-            fmtV(paneUnder.invPy(h.y)),
-            pal.crosshairBg,
-            pal.crosshairText,
-            'left'
-          );
-        }
-
-        // time pill
-        const tLabel = fmtFull(this._zt(d[h.index].time));
-        ctx.font = pillFont();
-        const tw = ctx.measureText(tLabel).width + 12;
-        this._pill(
-          clamp(hx - tw / 2, 2, plotRight - tw - 2),
-          plotBottom + 2,
-          tLabel,
-          pal.crosshairBg,
-          pal.crosshairText,
-          'left',
-          tw
-        );
-      }
+      /* crosshair: lives on the offscreen hover layer (see _paintOverlay) */
 
       /* measure tool overlay */
       if (this._measure && this._measure.pA != null && this._measure.pB != null) {
@@ -2799,7 +2933,7 @@ class WickChart extends HTMLElementBase {
         const dPct = m.pA ? (dP / m.pA) * 100 : 0;
         const label =
           `${dP >= 0 ? '+' : ''}${f.format(dP)} (${dPct >= 0 ? '+' : ''}${dPct.toFixed(2)}%)` +
-          ` · ${barsN} bars` +
+          ` · ${barsN} ${this._strings.bars}` +
           ` · ${hrs >= 24 ? Math.floor(hrs / 24) + 'd ' + (hrs % 24) + 'h' : hrs + 'h'}`;
         ctx.font = pillFont();
         const tw = ctx.measureText(label).width + 14;
@@ -2866,12 +3000,13 @@ class WickChart extends HTMLElementBase {
           this._statsKey = skey;
           if (st) {
             const pct = (v, dgt = 2) => `${v >= 0 ? '+' : ''}${v.toFixed(dgt)}%`;
+            const S = this._strings;
             this._statsRow.innerHTML =
               `<span><b>${pct(st.changePct)}</b></span>` +
-              `<span>maxDD ${st.maxDDPct.toFixed(1)}%</span>` +
-              `<span>ann.vol ${st.annVolPct.toFixed(0)}%</span>` +
-              `<span>up ${st.up} / dn ${st.dn}</span>` +
-              `<span>vol ${fmtCompact(st.avgVolume)}</span>`;
+              `<span>${S.maxDD} ${st.maxDDPct.toFixed(1)}%</span>` +
+              `<span>${S.annVol} ${st.annVolPct.toFixed(0)}%</span>` +
+              `<span>${S.up} ${st.up} / ${S.dn} ${st.dn}</span>` +
+              `<span>${S.vol} ${fmtCompact(st.avgVolume)}</span>`;
           } else {
             this._statsRow.innerHTML = '';
           }
@@ -2882,23 +3017,107 @@ class WickChart extends HTMLElementBase {
       }
 
       this._updateLegend();
+      // full frames end by refreshing the hover layer so the crosshair
+      // tracks the new scale/data instead of floating over a stale grid
+      this._paintOverlay();
     }
 
-    _pill(x, y, text, bg, fg, align = 'left', widthOverride) {
-      const ctx = this._ctx;
-      ctx.save();
-      ctx.font = pillFont();
-      const tw = widthOverride || ctx.measureText(text).width + 12;
+    _pill(x, y, text, bg, fg, align = 'left', widthOverride, ctx = this._ctx) {
+      const c = ctx;
+      c.save();
+      c.font = pillFont();
+      const tw = widthOverride || c.measureText(text).width + 12;
       const th = 18;
       const yy = clamp(y - th / 2, 0, this._H - th);
-      ctx.fillStyle = bg;
-      roundRectPath(ctx, x, yy, tw, th, 4);
-      ctx.fill();
-      ctx.fillStyle = fg;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, x + tw / 2, yy + th / 2 + 0.5);
+      c.fillStyle = bg;
+      roundRectPath(c, x, yy, tw, th, 4);
+      c.fill();
+      c.fillStyle = fg;
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(text, x + tw / 2, yy + th / 2 + 0.5);
+      c.restore();
+    }
+
+    /**
+     * The crosshair, drawn onto whatever 2d context is handed in. It used
+     * to live in the main render pass; it now draws on the offscreen hover
+     * layer, so a pointer crossing the chart repaints only this — the
+     * series, axes and panes beneath keep their last full frame. Everything
+     * it needs survives between renders: the layout, the last scale, and
+     * the pill machinery.
+     */
+    _drawCrosshair(ctx) {
+      const ly = this._ly;
+      const scale = this._lastScale;
+      const d = this._renderBars();
+      if (!ly || !scale || !this._hover || this._hover.index >= d.length) return;
+      const { plotRight, plotBottom, main } = ly;
+      const pal = this._palette();
+      const f = numberFmt(this._prec(scale.rawHi || 1));
+      const invY = (y) => {
+        const t = scale.max - ((y - main.y0) / main.h) * (scale.max - scale.min);
+        return scale.useLog ? Math.pow(10, t) : t;
+      };
+      const h = this._hover;
+      const hx = this._xFor(h.index);
+      ctx.save();
+      ctx.strokeStyle = pal.crosshair;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      const cx = Math.round(hx) + 0.5;
+      if (cx >= 0 && cx <= plotRight) {
+        ctx.moveTo(cx, 0);
+        ctx.lineTo(cx, plotBottom);
+      }
+      const inMain = h.y <= main.y1;
+      const paneUnder = inMain
+        ? null
+        : ly.panes.find((p) => h.y >= p.y0 && h.y <= p.y1);
+      if (inMain || paneUnder) {
+        const hy = Math.round(h.y) + 0.5;
+        ctx.moveTo(0, hy);
+        ctx.lineTo(plotRight, hy);
+      }
+      ctx.stroke();
       ctx.restore();
+
+      // price pill
+      if (inMain) {
+        this._pill(plotRight + 2, h.y, f.format(invY(h.y)), pal.crosshairBg, pal.crosshairText, 'left', undefined, ctx);
+      } else if (paneUnder) {
+        const fmtV =
+          paneUnder.entry.def.fmt === 'fixed1'
+            ? (v) => v.toFixed(1)
+            : paneUnder.entry.def.fmt === 'compact'
+            ? (v) => fmtCompact(v)
+            : (v) => f.format(v);
+        this._pill(plotRight + 2, h.y, fmtV(paneUnder.invPy(h.y)), pal.crosshairBg, pal.crosshairText, 'left', undefined, ctx);
+      }
+
+      // time pill
+      const tLabel = fmtFull(this._zt(d[h.index].time));
+      ctx.font = pillFont();
+      const tw = ctx.measureText(tLabel).width + 12;
+      this._pill(
+        clamp(hx - tw / 2, 2, plotRight - tw - 2),
+        plotBottom + 2,
+        tLabel,
+        pal.crosshairBg,
+        pal.crosshairText,
+        'left',
+        tw,
+        ctx
+      );
+    }
+
+    /** Repaint the hover overlay alone: clear, then the crosshair if any. */
+    _paintOverlay() {
+      const ctx = this._ovCtx;
+      if (!ctx || !this._W) return;
+      ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
+      ctx.clearRect(0, 0, this._W, this._H);
+      this._drawCrosshair(ctx);
     }
 
     _updateLegend() {
@@ -3249,14 +3468,18 @@ class WickChart extends HTMLElementBase {
 
     /**
      * Put the crosshair on the bar under a point and announce it. Shared by
-     * mouse hover, keyboard walking and the touch scrub gesture.
+     * mouse hover, keyboard walking and the touch scrub gesture. This is
+     * the hot path — pointermove fires far oftener than anything else —
+     * so it repaints only the hover overlay and refreshes the legend
+     * readout; the chart beneath keeps its last full frame.
      */
     _hoverAt(pt) {
       if (!this._ly || !this._data.length) return;
       const idx = clamp(Math.round(this._indexForX(pt.x)), 0, this._data.length - 1);
       this._hover = { index: idx, x: this._xFor(idx), y: pt.y };
       this._emitCrosshair(this._hover);
-      this._invalidate();
+      this._updateLegend();
+      this._paintOverlay();
     }
 
     /**
@@ -3397,6 +3620,7 @@ class WickChart extends HTMLElementBase {
         this._view.spacing = s;
         this._view.rightIndex = this._pinch.idxAtMid + (ly.plotRight - mid.x) / s;
         this._auto = this._atRight();
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._clampView();
         this._hover = null;
         this._invalidate();
@@ -3424,6 +3648,7 @@ class WickChart extends HTMLElementBase {
         if (Math.abs(dx) > 3) this._pan.moved = true;
         this._view.rightIndex = this._pan.rightIndex - dx / this._view.spacing;
         this._auto = this._atRight();
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._clampView();
         this._invalidate();
         this._emitRange();
@@ -3516,6 +3741,7 @@ class WickChart extends HTMLElementBase {
         // trackpads this makes the content follow the fingers, matching drag.
         this._view.rightIndex += dx / this._view.spacing;
         this._auto = this._atRight();
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._clampView();
         this._invalidate();
         this._emitRange();
@@ -3530,6 +3756,7 @@ class WickChart extends HTMLElementBase {
       this._view.spacing = newSp;
       this._view.rightIndex = idxAtCursor + (ly.plotRight - pt.x) / newSp;
       this._auto = this._atRight();
+      this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
       this._clampView();
       this._invalidate();
       this._emitRange();
@@ -3563,20 +3790,24 @@ class WickChart extends HTMLElementBase {
       } else if (key === 'Home') {
         this._view.rightIndex = Math.min(2 + ly.plotRight / this._view.spacing, d.length - 1);
         this._auto = this._atRight();
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._invalidate();
         this._emitRange();
       } else if (key === 'End') {
         this._view.rightIndex = d.length - 1 + this._rightMargin();
         this._auto = true;
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._invalidate();
         this._emitRange();
       } else if (key === '+' || key === '=') {
         this._view.spacing = clamp(this._view.spacing * 1.25, this._minSpacing(), WickChart._MAX_SP);
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._clampView();
         this._invalidate();
         this._emitRange();
       } else if (key === '-' || key === '_') {
         this._view.spacing = clamp(this._view.spacing / 1.25, this._minSpacing(), WickChart._MAX_SP);
+        this._ySettle = this._yNarrow = null; // y-snap: re-fit on the next render
         this._clampView();
         this._invalidate();
         this._emitRange();

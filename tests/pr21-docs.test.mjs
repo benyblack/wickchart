@@ -46,7 +46,7 @@ test('every observed attribute is documented', () => {
 
 test('every public method is documented', () => {
   const methods = [
-    'setData', 'update', 'clearData', 'fit', 'getVisibleRange', 'setVisibleRange',
+    'setData', 'update', 'clearData', 'setSeries', 'clearSeries', 'fit', 'getVisibleRange', 'setVisibleRange',
     'exportPNG', 'getDataWindow', 'getState', 'setState',
     'addPosition', 'removePosition', 'clearPositions',
     'addAlert', 'removeAlert', 'clearAlerts',

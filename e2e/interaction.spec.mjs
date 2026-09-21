@@ -102,6 +102,30 @@ test.describe('interaction', () => {
     await expectCanvasUnchanged(page, 'clean');
   });
 
+  // The offscreen hover layer: a pointer crossing the chart repaints the
+  // crosshair overlay alone — the series/axes beneath must not re-render.
+  test('hovering repaints only the overlay, never the full chart', async ({ page }) => {
+    await openFixture(page);
+    const box = await canvasBox(page);
+    await page.evaluate(() => {
+      const chart = window.chart;
+      const orig = chart._render.bind(chart);
+      window.__renderCount = 0;
+      chart._render = () => {
+        window.__renderCount++;
+        return orig();
+      };
+    });
+    for (let k = 1; k <= 12; k++) {
+      await page.mouse.move(box.x + box.width * (0.2 + 0.05 * k), box.y + box.height * 0.5);
+      await page.evaluate(() => window.settle());
+    }
+    const count = await page.evaluate(() => window.__renderCount);
+    expect(count).toBe(0); // hover alone never schedules a full frame
+    // …and the crosshair was really there while it happened
+    expect(await page.evaluate(() => window.events.crosshair.length)).toBeGreaterThan(0);
+  });
+
   test('double-click refits the whole series', async ({ page }) => {
     await openFixture(page);
     const box = await canvasBox(page);
