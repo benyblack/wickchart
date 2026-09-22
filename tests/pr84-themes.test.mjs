@@ -211,3 +211,27 @@ test('--wick-* CSS variables override the registered theme', () => {
     else globalThis.getComputedStyle = prev;
   }
 });
+
+test('the shadow chrome is seeded from the resolved theme for keys the page did not declare', () => {
+  const prev = globalThis.getComputedStyle;
+  // the page declares only --wick-up; everything else must be seeded
+  globalThis.getComputedStyle = () => ({ getPropertyValue: (n) => (n === '--wick-up' ? '#deadbe' : '') });
+  try {
+    registerTheme('chrome', { bg: '#001122' });
+    const seeded = {};
+    const chart = {
+      _theme: 'chrome',
+      _wrap: { style: { setProperty: (n, v) => { seeded[n] = v; } } },
+    };
+    chart._palette = P._palette.bind(chart);
+    const pal = chart._palette();
+    assert.equal(seeded['--wick-bg'], '#001122');                    // theme value seeded
+    assert.equal(seeded['--wick-text-strong'], getTheme('chrome').textStrong);
+    assert.equal(pal.up, '#deadbe');                                 // canvas still prefers the declared var
+    assert.equal(seeded['--wick-up'], undefined);                    // …and it is never seeded over
+    assert.equal(seeded['--wick-vol-alpha'], undefined);             // not a color — never seeded
+  } finally {
+    if (prev === undefined) delete globalThis.getComputedStyle;
+    else globalThis.getComputedStyle = prev;
+  }
+});

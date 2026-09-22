@@ -264,6 +264,7 @@ class WickChart extends HTMLElementBase {
       this._poss = root.querySelector('.poss');
       this._statsRow = root.querySelector('.statsrow');
       this._nodata = root.querySelector('.nodata');
+      this._wrap = root.querySelector('.wrap'); // CSS-var seed target for the chrome
 
       this._data = [];
       this._version = 0;
@@ -1487,6 +1488,15 @@ class WickChart extends HTMLElementBase {
       const base = getTheme(this._theme) || THEMES.dark;
       const cs = getComputedStyle(this);
       const get = (name, fallback) => cs.getPropertyValue('--wick-' + name).trim() || fallback;
+      // The shadow chrome (legend, HUD, focus ring) is styled with
+      // var(--wick-*, <dark fallback>) — a theme without page-level CSS
+      // variables (any registered theme, or the built-in light) would leave
+      // the HTML on the dark fallbacks while the canvas renders the theme.
+      // Seed each key the page did NOT declare onto .wrap so the chrome
+      // follows the resolved palette; a declared variable inherits from the
+      // host and wins over nothing here, keeping the documented order
+      // (base → theme → CSS variables) identical for canvas and chrome.
+      const st = this._wrap && this._wrap.style;
       const pal = {};
       for (const k of Object.keys(base)) {
         if (k === 'overlay') {
@@ -1498,7 +1508,10 @@ class WickChart extends HTMLElementBase {
           const single = get('overlay', '');
           pal.overlay = single ? base.overlay.map(() => single) : o;
         } else {
-          pal[k] = get(k.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase()), base[k]);
+          const name = k.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase());
+          const v = cs.getPropertyValue('--wick-' + name).trim();
+          pal[k] = v || base[k];
+          if (st && !v && k !== 'volAlpha') st.setProperty('--wick-' + name, pal[k]);
         }
       }
       pal.volAlpha = parseFloat(pal.volAlpha);
