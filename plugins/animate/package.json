@@ -1,0 +1,40 @@
+{
+  "name": "wickchart-animate",
+  "version": "0.1.0",
+  "description": "Live-price easing for wickchart — ticks on the forming bar glide to their new close over a short ease instead of teleporting. Opt-in plugin, zero dependencies, zero core changes.",
+  "type": "module",
+  "main": "animate.mjs",
+  "module": "animate.mjs",
+  "exports": {
+    ".": "./animate.mjs"
+  },
+  "files": [
+    "animate.mjs",
+    "README.md"
+  ],
+  "keywords": [
+    "chart",
+    "charting",
+    "animation",
+    "easing",
+    "live-price",
+    "trading",
+    "web-component",
+    "wickchart",
+    "canvas"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benyblack/wickchart.git",
+    "directory": "plugins/animate"
+  },
+  "peerDependencies": {
+    "wickchart": ">=2.3.0"
+  },
+  "peerDependenciesMeta": {
+    "wickchart": {
+      "optional": true
+    }
+  }
+}

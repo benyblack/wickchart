@@ -42,7 +42,13 @@ import { gzipSync } from 'node:zlib';
 // but the kumo needs new main-entry surface: a fill channel through
 // normalizeIndicatorResult and overlay drawing that projects
 // forward-displaced series into the right margin. Landed at 66.5 KB.
-const BUDGET_GZ = 67 * 1024; // 67 KB gzipped for the whole main entry
+//
+// 67→68 KB: registerTheme() + theme-seeded shadow chrome. The registry and
+// resolver are small, but the chrome seeding that propagates a resolved
+// palette (any theme without page-level CSS variables — including the
+// built-in light, whose legend was near-invisible before) into the
+// legend/HUD/focus ring costs ~0.36 KB. Landed at 67.2 KB.
+const BUDGET_GZ = 68 * 1024; // 68 KB gzipped for the whole main entry
 const FILES = ['src/core.js', 'src/wick-chart.js'];
 
 // the drawing toolkit is opt-in bytes; it earns its own, smaller budget
@@ -118,6 +124,12 @@ const SCENARIO_FILES = ['plugins/scenario/core.mjs', 'plugins/scenario/scenario.
 // all owned since the 2.0 cut (they left the core entry). Landed at 4.8 KB.
 const AI_BUDGET_GZ = 5 * 1024;
 const AI_FILES = ['plugins/ai/core.mjs', 'plugins/ai/ai.mjs'];
+
+// animate: live-price easing — the update() wrapper and the eased frame
+// writer, all display-path (no drawing, no new core surface).
+// Landed at 2.3 KB gz.
+const ANIMATE_BUDGET_GZ = 4 * 1024;
+const ANIMATE_FILES = ['plugins/animate/animate.mjs'];
 
 // The gzip budgets measure canonical content: CRLF is a checkout artifact
 // (core.autocrlf on Windows), not bytes anyone ships — the registry and CI
@@ -347,5 +359,19 @@ test('wickchart-ai plugin stays under its (smaller) gzip budget', () => {
   assert.ok(
     total <= AI_BUDGET_GZ,
     `wickchart-ai is ${(total / 1024).toFixed(1)} KB gz, budget is ${AI_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
+  );
+});
+
+test('wickchart-animate plugin stays under its (smaller) gzip budget', () => {
+  let total = 0;
+  const parts = [];
+  for (const f of ANIMATE_FILES) {
+    const n = gz(f);
+    total += n;
+    parts.push(`${f}: ${(n / 1024).toFixed(1)} KB gz`);
+  }
+  assert.ok(
+    total <= ANIMATE_BUDGET_GZ,
+    `wickchart-animate is ${(total / 1024).toFixed(1)} KB gz, budget is ${ANIMATE_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
   );
 });

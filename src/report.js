@@ -16,12 +16,13 @@
  *
  * Options: title (default: the chart's label attribute), source (a string
  * credited in the footer, e.g. 'binance: BTCUSDT'), brand ('WickChart'),
- * theme ('dark' | 'light' | 'auto' — auto reads the chart's CSS variables),
+ * theme ('dark' | 'light' | 'auto' — auto also follows a registered
+ * registerTheme() theme beneath the chart's CSS variables),
  * scale (1..4, default 2), precision (price decimals, default derived),
  * as ('url' | 'blob' | 'canvas').
  * ========================================================================== */
 
-import { computeStats } from './core.js';
+import { computeStats, getTheme } from './core.js';
 
 /* ---------------- layout constants (CSS px, pre-scale) ---------------- */
 
@@ -90,11 +91,22 @@ const PALETTES = {
   },
 };
 
-/** Resolve the report colors: theme palettes, overridden by the chart's own
- *  --wick-* variables when readable (browser) and theme is 'auto'. */
+/** Resolve the report colors: theme palettes, overridden by a registered
+ *  registerTheme() theme (in auto mode) and then the chart's own --wick-*
+ *  variables when readable (browser) and theme is 'auto'. */
 export function reportColors(chart, theme = 'auto') {
   const key = theme === 'light' || theme === 'dark' ? theme : 'auto';
   const pal = { ...PALETTES[key === 'auto' ? 'dark' : key] };
+  let seeded = false;
+  if (key === 'auto') {
+    const name = chart && chart.theme;
+    const t = name && name !== 'light' && name !== 'dark' ? getTheme(name) : null;
+    if (t) {
+      pal.bg = t.bg; pal.text = t.textStrong; pal.muted = t.text;
+      pal.up = t.up; pal.down = t.down; pal.accent = t.accent;
+      seeded = true;
+    }
+  }
   if (key === 'auto' && typeof getComputedStyle === 'function' && chart && chart.nodeType) {
     const cs = getComputedStyle(chart);
     const v = (name, fb) => cs.getPropertyValue(name).trim() || fb;
@@ -109,8 +121,7 @@ export function reportColors(chart, theme = 'auto') {
   if (key === 'auto') {
     pal.light = luminance(pal.bg) > 0.5;
     if (pal.light) {
-      pal.panel = PALETTES.light.panel;
-      pal.muted = PALETTES.light.muted;
+      pal.panel = PALETTES.light.panel; if (!seeded) pal.muted = PALETTES.light.muted;
     } else {
       pal.panel = PALETTES.dark.panel;
     }

@@ -342,7 +342,7 @@ chart.<span class="attr">clearSeries</span>(<span class="str">'eth'</span>);</pr
         <p>Everything is an attribute first — the component is usable from pure HTML. Remove an attribute (or set <code>"false"</code>) to turn a toggle off.</p>
         <table>
           <tr><th>Attribute</th><th>Default</th><th>Description</th></tr>
-          <tr><td><code>theme</code></td><td><code>dark</code></td><td><code>dark</code> or <code>light</code></td></tr>
+          <tr><td><code>theme</code></td><td><code>dark</code></td><td><code>dark</code>, <code>light</code>, or any <code>registerTheme()</code> name</td></tr>
           <tr><td><code>type</code></td><td><code>candles</code></td><td>Series type — see <a href="#types">Series types</a></td></tr>
           <tr><td><code>indicators</code></td><td><code>volume</code>*</td><td>Space/comma list: <code>sma:20 ema:50 bb:20 vwap supertrend:10/3 ichimoku:9/26/52/26 rsi:14 macd:12/26/9 stoch:14/3 atr:14 obv cci:20 wr:14 volume</code>, registered names, or <a href="#wickscript">WickScript</a> expressions. <code>""</code> disables all.</td></tr>
           <tr><td><code>label</code></td><td>–</td><td>Legend text (e.g. <code>"BTC · 1h"</code>)</td></tr>
@@ -737,7 +737,7 @@ location.hash = encodeStateQuery(chart.getState());   <span class="cmt">// → U
 
       <section id="theming">
         <h2>Theming <a class="anchor" href="#theming">#</a></h2>
-        <p><code>theme="dark|light"</code> for the presets, then override any slot with CSS custom properties on the element (0.x <code>--hab-*</code> names still work as fallbacks):</p>
+        <p><code>theme="dark|light"</code> — or any registered <code>registerTheme()</code> name — for the presets, then override any slot with CSS custom properties on the element (0.x <code>--hab-*</code> names still work as fallbacks):</p>
         <table>
           <tr><th>Variable</th><th>Controls</th></tr>
           <tr><td><code>--wick-bg</code></td><td>Chart background</td></tr>
@@ -758,6 +758,17 @@ location.hash = encodeStateQuery(chart.getState());   <span class="cmt">// → U
           <wick-feed for="ex-th" demo="BTC" tf="1h" limit="260"></wick-feed>
           <wick-chart id="ex-th" label="themed" indicators="ema:21 volume"></wick-chart>
         </div>
+        <h3>Named custom themes — registerTheme()</h3>
+        <p>Ship a palette as a theme name instead of per-element CSS variables. <code>registerTheme(name, palette, opts?)</code> — from <code>'wickchart'</code> or <code>'wickchart/core'</code> — merges a partial palette over <code>{ base: 'dark' | 'light' }</code> (default <code>dark</code>): unknown keys drop, a string <code>overlay</code> expands to the full indicator palette while an array pads with the base colors, <code>volAlpha</code> coerces, re-registering a name overwrites it live (built-in names are replaceable too), and registration is global — every chart on the page resolves the name. Re-registering a built-in name does not change report export colors — the report keeps its own tuned light/dark palettes.</p>
+        <div class="codewrap"><pre class="code"><span class="tag">import</span> { registerTheme } <span class="tag">from</span> <span class="str">'wickchart/core'</span>;
+
+<span class="attr">registerTheme</span>(<span class="str">'matrix'</span>, {
+  bg: <span class="str">'#001100'</span>, text: <span class="str">'#00ff66'</span>, up: <span class="str">'#00ff66'</span>, down: <span class="str">'#ff2d2d'</span>,  <span class="cmt">// partial — the rest comes from the base</span>
+});
+
+<span class="cmt">// the name then works as an attribute:</span>
+&lt;wick-chart theme=<span class="str">"matrix"</span>&gt;&lt;/wick-chart&gt;</pre></div>
+        <p><code>--wick-*</code> variables still override the registered palette slot by slot; the PNG report export follows the chart's registered theme; saved layouts and shareable presets round-trip the name. Declarative-flow note: with the HTML-attribute + module-script pattern the chart may render once before your script registers the theme — the name resolves at the next render (the <code>setData</code> call), not retroactively.</p>
       </section>
 
       <section id="interactions">

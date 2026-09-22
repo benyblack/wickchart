@@ -23,7 +23,7 @@ import {
   clamp, isNum, numberFmt, fmtCompact, autoPrecision, niceStep, hexToRgba,
   FONT_STACK, axisFont, pillFont, roundRectPath,
   TIME_STEPS, HOUR, DAY, toMs, zoneOffset, hhmm, fmtDay, fmtMonth, fmtYear, fmtFull,
-  THEMES, mergeOlderData, detectGaps,
+  THEMES, mergeOlderData, detectGaps, registerTheme, getTheme, THEMES_VERSION,
   parseIndicators, normalizeIndicatorResult, BUILTIN_INDICATORS,
   positionPnl, positionPnlPct, checkAlertCross, computeStats, safeColor,
   SERIES_TYPES, calcHeikinAshi, buildColumns, computeVolumeProfile,
@@ -264,6 +264,7 @@ class WickChart extends HTMLElementBase {
       this._poss = root.querySelector('.poss');
       this._statsRow = root.querySelector('.statsrow');
       this._nodata = root.querySelector('.nodata');
+      this._wrap = root.querySelector('.wrap'); // CSS-var seed target for the chrome
 
       this._data = [];
       this._version = 0;
@@ -495,7 +496,7 @@ class WickChart extends HTMLElementBase {
     attributeChangedCallback(name, _old, val) {
       switch (name) {
         case 'theme':
-          this._theme = val === 'light' ? 'light' : 'dark';
+          this._theme = val || 'dark';
           break;
         case 'type':
           this._type = SERIES_TYPES.includes(val) ? val : 'candles';
@@ -1482,10 +1483,20 @@ class WickChart extends HTMLElementBase {
     }
 
     _palette() {
-      if (this._pal && this._palKey === this._theme) return this._pal;
-      const base = THEMES[this._theme] || THEMES.dark;
+      const palKey = this._theme + ' ' + THEMES_VERSION;
+      if (this._pal && this._palKey === palKey) return this._pal;
+      const base = getTheme(this._theme) || THEMES.dark;
       const cs = getComputedStyle(this);
       const get = (name, fallback) => cs.getPropertyValue('--wick-' + name).trim() || fallback;
+      // The shadow chrome (legend, HUD, focus ring) is styled with
+      // var(--wick-*, <dark fallback>) — a theme without page-level CSS
+      // variables (any registered theme, or the built-in light) would leave
+      // the HTML on the dark fallbacks while the canvas renders the theme.
+      // Seed each key the page did NOT declare onto .wrap so the chrome
+      // follows the resolved palette; a declared variable inherits from the
+      // host and wins over nothing here, keeping the documented order
+      // (base → theme → CSS variables) identical for canvas and chrome.
+      const st = this._wrap && this._wrap.style;
       const pal = {};
       for (const k of Object.keys(base)) {
         if (k === 'overlay') {
@@ -1497,13 +1508,16 @@ class WickChart extends HTMLElementBase {
           const single = get('overlay', '');
           pal.overlay = single ? base.overlay.map(() => single) : o;
         } else {
-          pal[k] = get(k.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase()), base[k]);
+          const name = k.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase());
+          const v = cs.getPropertyValue('--wick-' + name).trim();
+          pal[k] = v || base[k];
+          if (st && !v && k !== 'volAlpha') st.setProperty('--wick-' + name, pal[k]);
         }
       }
       pal.volAlpha = parseFloat(pal.volAlpha);
       if (!isNum(pal.volAlpha)) pal.volAlpha = 0.33;
       this._pal = pal;
-      this._palKey = this._theme;
+      this._palKey = palKey;
       return pal;
     }
 
@@ -3176,7 +3190,7 @@ class WickChart extends HTMLElementBase {
       const key = [
         idx, this._version, this._type, this._label, this._theme,
         this.getAttribute('indicators'), this.getAttribute('volshading'),
-        this._positions.length, this._posVersion || 0,
+        this._positions.length, this._posVersion || 0, THEMES_VERSION,
       ].join('|');
       if (key === this._legendKey) return;
       this._legendKey = key;
@@ -3967,4 +3981,4 @@ if (typeof customElements !== 'undefined') {
 }
 
 export default WickChart;
-export { WickChart };
+export { WickChart, registerTheme };
