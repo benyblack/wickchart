@@ -26,7 +26,7 @@ its own commit with the why.
 
 ---
 
-## 2.3.0 — 2026-09-21 — named themes & animate
+## 2.3.0 — 2026-09-22 — named themes & animate
 
 Two shipped features. npm goes 2.2.0 → 2.3.0 (minor: new additive surface —
 the `registerTheme()` core export), and `wickchart-animate` joins the
