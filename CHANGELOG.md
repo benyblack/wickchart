@@ -30,8 +30,8 @@ its own commit with the why.
 
 Two shipped features. npm goes 2.2.0 → 2.3.0 (minor: new additive surface —
 the `registerTheme()` core export), and `wickchart-animate` joins the
-plugin family. The main entry landed at ~66.9 KB gz of the 67 KB ceiling —
-no budget raise.
+plugin family. The main entry landed at ~67.2 KB gz; the ceiling was raised 67→68 KB (its own
+commit) for the theme-seeded shadow chrome.
 
 - **`registerTheme()` — named custom themes (core export from
   `'wickchart'` / `'wickchart/core'`).** A partial palette merged over

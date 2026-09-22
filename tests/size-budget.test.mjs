@@ -42,7 +42,13 @@ import { gzipSync } from 'node:zlib';
 // but the kumo needs new main-entry surface: a fill channel through
 // normalizeIndicatorResult and overlay drawing that projects
 // forward-displaced series into the right margin. Landed at 66.5 KB.
-const BUDGET_GZ = 67 * 1024; // 67 KB gzipped for the whole main entry
+//
+// 67→68 KB: registerTheme() + theme-seeded shadow chrome. The registry and
+// resolver are small, but the chrome seeding that propagates a resolved
+// palette (any theme without page-level CSS variables — including the
+// built-in light, whose legend was near-invisible before) into the
+// legend/HUD/focus ring costs ~0.36 KB. Landed at 67.2 KB.
+const BUDGET_GZ = 68 * 1024; // 68 KB gzipped for the whole main entry
 const FILES = ['src/core.js', 'src/wick-chart.js'];
 
 // the drawing toolkit is opt-in bytes; it earns its own, smaller budget

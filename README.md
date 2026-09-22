@@ -154,7 +154,7 @@ most wrappers add build steps and framework lock-in. WickChart takes the opposit
 bet:
 
 - **Zero dependencies, no build step required** (~67 KB gzipped for the whole
-  component — `core.js` + `wick-chart.js`, held to a 67 KB CI budget)
+  component — `core.js` + `wick-chart.js`, held to a 68 KB CI budget)
 - **One tag, sane defaults** — drop it in and it renders; everything optional
 - **Built-in usefulness** — crosshair + OHLC legend, last-price line, wheel zoom,
   drag pan, pinch, keyboard navigation, live streaming, PNG export
@@ -755,7 +755,7 @@ chart.removeLayer('flags'); // detach by handle or id
 A claimed gesture delivers `move`/`up` (and `cancel` on Escape) to the layer
 while the chart suppresses pan/brush/measure. Markers, watermarks, signal
 badges — or a whole drawing toolkit — plug in without the core growing a
-single tool. The main entry is covered by a CI gzip budget (67 KB) so it
+single tool. The main entry is covered by a CI gzip budget (68 KB) so it
 stays that way.
 
 ### Drawings — the `wickchart-draw` plugin
