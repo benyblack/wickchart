@@ -1,6 +1,6 @@
 {
   "name": "wickchart",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "<wick-chart> — a modern, dependency-free financial charting web component. Candles, line & area charts, crosshair, zoom/pan, indicators (incl. a safe expression mini-language), live streaming via <wick-feed> (incl. tick/volume/dollar bars), a worker compute path for 1M-bar histories, report export, theming.",
   "type": "module",
   "main": "src/wick-chart.js",
