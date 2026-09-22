@@ -89,9 +89,12 @@ export class Animate {
 
   _tick(bar) {
     if (this._detached) return this._pass(bar);
-    if (this._dur <= 0 || this._reduced() || !bar || bar.close == null || bar.close === '' || !isFinite(Number(bar.close))) {
-      return this._pass(bar);
-    }
+    if (this._dur <= 0 || this._reduced() || !bar) return this._pass(bar);
+    // the chart's normalizer resolves { value } → close (the documented
+    // line-series input form); classify on the same value or every
+    // value-form tick reads as invalid and line charts never animate
+    const c = bar.close != null && bar.close !== '' ? bar.close : bar.value;
+    if (c == null || c === '' || !isFinite(Number(c))) return this._pass(bar);
     // the chart normalizes seconds → ms inside update() (its 1e11 cutoff);
     // classify against the normalized value or a seconds tick reads as a
     // backfill and silently skips the ease
@@ -118,8 +121,8 @@ export class Animate {
     this._es = {
       time: t,
       from,
-      to: Number(bar.close),
-      real: bar,
+      to: Number(c),
+      real: { ...bar }, // snapshot: the caller may reuse/mutate its bar object
       cur: from,
       volFrom,
       volTo: Number(bar.volume),

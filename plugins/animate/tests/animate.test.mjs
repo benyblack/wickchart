@@ -15,9 +15,11 @@ class FakeChart {
   get data() { return this._d; }
   setData(b) { this._d = b; }
   update(b) {
-    // the real chart normalizes seconds → ms inside update() (1e11 cutoff);
-    // only seconds-format bars are copied, so ms-bar identity asserts hold
+    // the real chart normalizes inside update(): seconds → ms (1e11 cutoff)
+    // and { value } → close (the line-series form); copies only when a
+    // transform applies, so plain ms/close bars keep identity asserts intact
     if (b && typeof b.time === 'number' && b.time < 1e11) b = { ...b, time: b.time * 1000 };
+    if (b && b.close == null && b.value != null) b = { ...b, close: b.value };
     this.writes.push(b);
     const d = this._d, last = d[d.length - 1];
     if (last && b.time === last.time) d[d.length - 1] = b;
@@ -124,7 +126,7 @@ test('eases the forming-bar close and lands on the exact true bar', () => {
   assert.ok(chart.writes[chart.writes.length - 1].close < 110);
   frame(1180); // k>=1 → the true bar, exactly
   const w = chart.writes[chart.writes.length - 1];
-  assert.equal(w, bar); // identity: the exact tick object, not a copy
+  assert.deepEqual(w, bar); // the exact tick as submitted — values, not the caller's object
   assert.equal(w.close, 110);
   assert.equal(w.high, 101);
   assert.equal(w.volume, 60);
@@ -349,7 +351,7 @@ test('interpolated frames never carry the closed flag; the final true bar does',
   assert.ok(chart.writes.every((w) => w.closed === undefined));
   frame(1180); // k>=1 → the exact true bar, flag intact
   const fin = chart.writes[chart.writes.length - 1];
-  assert.equal(fin, bar);
+  assert.deepEqual(fin, bar); // the submitted values
   assert.equal(fin.closed, true);
 });
 
@@ -385,4 +387,53 @@ test('seconds-format ticks classify as forming-bar ticks, not backfills', () => 
   frame(1180); // completes on the true bar
   assert.equal(chart.data[chart.data.length - 1].close, 110);
   assert.equal(chart.data[chart.data.length - 1].time, last.time); // normalized on write
+});
+
+test('{ time, value } ticks ease like close ticks (the line-series input form)', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart);
+  const last = chart.data[chart.data.length - 1];
+  chart.update({ time: last.time, value: 110, volume: 60 }); // no `close` at all
+  assert.equal(chart.writes.length, 0); // an ease started, not a passthrough
+  frame(1000);
+  frame(1090);
+  const w = chart.writes[chart.writes.length - 1];
+  assert.ok(w.close > 100 && w.close < 110); // eased frames carry a close
+  frame(1180); // final frame = the true bar as submitted
+  const fin = chart.writes[chart.writes.length - 1];
+  assert.equal(fin.value, 110);
+  assert.ok(!('close' in fin) || fin.close === 110 || fin.close === undefined);
+  assert.equal(chart.data[chart.data.length - 1].close, 110); // FakeChart stores the write; value-form final lands via update
+});
+
+test('a value-form tick mid-ease retargets instead of being clobbered', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart);
+  const last = chart.data[chart.data.length - 1];
+  chart.update(tickOn(last.time, 110)); // close-form ease starts
+  frame(1000);
+  chart.update({ time: last.time, value: 120 }); // value-form retarget
+  frame(1090);
+  frame(1360); // settle
+  assert.equal(chart.data[chart.data.length - 1].close, 120); // the value tick won, not the old 110 target
+});
+
+test('a caller mutating the submitted bar after update() cannot change the ease', () => {
+  installRaf();
+  const chart = new FakeChart();
+  attachAnimate(chart);
+  const last = chart.data[chart.data.length - 1];
+  const bar = tickOn(last.time, 110);
+  chart.update(bar);
+  bar.close = 999;              // the caller reuses/mutates its buffer…
+  bar.time = last.time + DT;    // …even the timestamp
+  frame(1000);
+  frame(1090);
+  assert.ok(chart.writes[chart.writes.length - 1].close < 999); // ease unaffected
+  frame(1180); // final write: the bar as SUBMITTED, not as later mutated
+  const fin = chart.writes[chart.writes.length - 1];
+  assert.equal(fin.close, 110);
+  assert.equal(fin.time, last.time);
 });
