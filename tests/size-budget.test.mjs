@@ -137,6 +137,12 @@ const AI_FILES = ['plugins/ai/core.mjs', 'plugins/ai/ai.mjs'];
 const ANIMATE_BUDGET_GZ = 4 * 1024;
 const ANIMATE_FILES = ['plugins/animate/animate.mjs'];
 
+// share: the chart as a file — the standalone HTML builder (module inlining
+// + payload escaping), the parser, and the attach surface.
+// Landed at 3.0 KB gz.
+const SHARE_BUDGET_GZ = 5 * 1024;
+const SHARE_FILES = ['plugins/share/share.mjs'];
+
 // The gzip budgets measure canonical content: CRLF is a checkout artifact
 // (core.autocrlf on Windows), not bytes anyone ships — the registry and CI
 // both normalize to LF, so the test does too before measuring.
@@ -379,5 +385,19 @@ test('wickchart-animate plugin stays under its (smaller) gzip budget', () => {
   assert.ok(
     total <= ANIMATE_BUDGET_GZ,
     `wickchart-animate is ${(total / 1024).toFixed(1)} KB gz, budget is ${ANIMATE_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
+  );
+});
+
+test('wickchart-share plugin stays under its (smaller) gzip budget', () => {
+  let total = 0;
+  const parts = [];
+  for (const f of SHARE_FILES) {
+    const n = gz(f);
+    total += n;
+    parts.push(`${f}: ${(n / 1024).toFixed(1)} KB gz`);
+  }
+  assert.ok(
+    total <= SHARE_BUDGET_GZ,
+    `wickchart-share is ${(total / 1024).toFixed(1)} KB gz, budget is ${SHARE_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
   );
 });
