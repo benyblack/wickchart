@@ -523,9 +523,10 @@ document.getElementById('explain-copy').addEventListener('click', async () => {
 
 /* ---------------- shape search (find this window's shape everywhere) ---------------- */
 
-document.getElementById('btn-shape').addEventListener('click', () => {
+document.getElementById('btn-shape').addEventListener('click', (e) => {
   if (chart.shapeResult) {
     chart.clearShape();
+    e.currentTarget.setAttribute('aria-pressed', 'false');
     toast('Shape bands cleared.');
     return;
   }
@@ -535,6 +536,7 @@ document.getElementById('btn-shape').addEventListener('click', () => {
     toast('Zoom in a little — the shape needs at least 8 bars.');
     return;
   }
+  e.currentTarget.setAttribute('aria-pressed', 'true');
   const best = res.matches[0];
   toast(
     `${res.matches.length} match${res.matches.length === 1 ? '' : 'es'} in ${res.duration.toFixed(0)} ms` +
