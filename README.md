@@ -1307,6 +1307,14 @@ shipped in exactly that gap — a React parent re-render used to silently reset
 the user's zoom, and a chart moved to a monitor with a different pixel ratio
 kept rendering at the old resolution. Both are covered in `e2e/` now.
 
+**Golden vectors** gate the indicator math itself. Every exported kernel
+(`calcSMA` … `calcSuperTrend`) runs in `npm test` against committed reference
+vectors — generated from independent numpy/pandas implementations,
+cross-checked against the third-party [`ta`](https://pypi.org/project/ta/)
+package where conventions align, plus hand-derived round-number cases — and
+fails over tolerance. The method, the pinned conventions and the cross-check
+matrix live in [docs/correctness.md](./docs/correctness.md).
+
 The browser suite serves the repository over a small dependency-free static
 server (`e2e/server.mjs`) and loads the library from source, so it tests the
 files that ship rather than a build artifact. The React fixture pulls React
