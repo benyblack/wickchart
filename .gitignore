@@ -8,3 +8,4 @@ playwright-report/
 .claude/
 .review/
 .zcode/
+__pycache__/
