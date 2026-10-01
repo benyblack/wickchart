@@ -906,6 +906,33 @@ interpolated closes — the linear path between two real closes, at most
 prints, `duration: 0` or `detach()` are the escape hatches. Peer
 dependency: wickchart ≥ 2.3.
 
+### Share — the `wickchart-share` plugin
+
+The chart as a **file** (~3 KB gz, own CI budget): `exportChart()` produces
+ONE self-contained `.html` — the library's own module sources inlined as
+base64 data-URL modules, the chart's state and bars embedded as a payload —
+that opens offline in any browser and paints the exact chart again. Only a
+zero-dependency, no-build library can do this: there is nothing else to ship.
+
+```js
+import { attachShare, parseChartFile } from 'wickchart-share';
+
+const share = attachShare(chart);
+await share.downloadChart('btc.html');      // triggers the browser download
+const html = await share.exportChart();     // …or take the string
+const { bars, state } = parseChartFile(await file.text()); // read one back
+```
+
+The exported file needs no network and no import map: the chart module's
+`from './core.js'` line is rewritten onto the core's data URL at export
+time, one dynamic `import()` registers the element, and `setState()` then
+`setData()` restore the exact view. `<` is escaped everywhere user or
+source text is embedded, so neither a title nor a code comment can
+terminate a script block. The plugin locates the library's modules through
+resource timing (any way the page loaded them); bundled hosts pass
+`attachShare(chart, { coreUrl, chartUrl })`. Peer dependency:
+wickchart ≥ 2.3.
+
 ### Compare — the `wickchart-compare` plugin
 
 Normalized multi-asset overlays as opt-in bytes (~4 KB gz, own CI budget):
