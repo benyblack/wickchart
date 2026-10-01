@@ -3,12 +3,11 @@
 North star: **"TradingView-class usefulness inside a zero-dependency custom element."**
 Every feature must survive the test: *one tag, zero build step, sane defaults*.
 
-Current state (v1.7): everything from 1.6, plus tick/volume/dollar bar
-aggregation on <wick-feed>, the wickchart-grid / wickchart-paper plugins
-(11 packages total), a worker compute path for 1M-bar histories, incremental
-indicator updates on streamed ticks, timezone-aware axes, and the branded
-report export — every open feature item across Tracks 1–5 shipped. See
-CHANGELOG.md.
+Current state (v2.3.0): every feature track shipped (see the struck-through
+rows and CHANGELOG.md — through the 2.1 polish track, 2.2 ichimoku, 2.3
+named themes + the wickchart-animate plugin, 16 plugin packages total),
+plus the engineering track: the size-budget test family, the browser suite
+and the perf-budget CI gate.
 
 **Done (2026-09):** the five recommended PRs below — loadMore backfill + gap
 dividers, indicator registry + Bollinger + MACD, positions/orders + alerts,
@@ -83,9 +82,13 @@ is suggested priority.
 
 ## Track 5 — Engineering & scale (continuous)
 
-- **Tests**: unit tests for pure functions (indicators, ticks, scales), Playwright
-  visual-regression diffs, and a **perf-budget CI gate** from the benchmark
-  script we already wrote (fail if default-view render > 1 ms). *M*
+- ~~**Tests**: unit tests for pure functions (indicators, ticks, scales),
+  Playwright visual-regression diffs, and a **perf-budget CI gate** (fail if
+  default-view render > 1 ms)~~ ✅ shipped — 664 unit tests, the Playwright
+  suite with runtime canvas-diff assertions, and the perf gate as
+  `e2e/perf.spec.mjs` (2026-10): full renders timed in a real browser on a
+  50k-bar history, median of batched samples, failing the CI browser job over
+  1 ms default view / 8 ms max zoom-out.
 - ~~**Incremental indicators**~~ ✅ shipped (PR #65) — streamed ticks (append / forming-bar replace) patch every online-capable series by recomputing a bounded tail with the *same* batch definition (O(warm-up) ≈ 0.1 ms per indicator, not O(full history)), writing only the last `period` values so history keeps its exact full-compute values; seeds come from the sync or the worker compute, so the forming bar stays fresh on 1M-bar worker charts too. `obv`/`vwap` (cumulative) and `supertrend` (stateful) are excluded by construction.
 - **Columnar typed-array store** internally (accept objects, convert once). *M* — **deferred on measurement** (2.1, see `docs/decisions/2.1.0-polish-track.md` D6): render is O(pixel columns) and flat in store size (4.8 ms default view at 1M bars), the scan it would optimize costs 10.5 ms/M bars and only at full zoom, and the heavy compute already runs columnar in the worker. Reopen on profiler evidence (≥5M bars or sub-16 ms low-end budgets).
 - ~~**Min/max downsampling** per pixel column for extreme zoom-outs~~ ✅ shipped (2.1) — candles had it since the deep-zoom aggregation (high/low min-max per pixel column); 2.1 closed the line/area gap: columns also track close extremes (`cMin`/`cMax`), both join the polyline (nearest-to-previous first), and the line-mode autoscale scan uses them — a one-bar spike inside a column survives.
@@ -115,13 +118,12 @@ Canvas 2D floor is ~1 ms at our scale — revisit only with profiler evidence).
 4. ~~**Stats panel + measure tool**~~ ✅ shipped
 5. ~~**`getState()/setState()` + URL sharing**~~ ✅ shipped
 
-**Next up (suggested):** 2.0.2 is out and the 2.1 polish track cleared
-the roadmap's remaining open items — live-render polish (y-range settle,
-offscreen hover layer), close-extreme downsampling, cross-symbol spread
-panes, i18n + presets (see CHANGELOG). What's left on purpose: the
-**perf-budget CI gate** (the only unshipped Track-5 line), the deferred
-columnar store (reopen on profiler evidence, `docs/decisions/2.1.0-polish-track.md`
-D6), and whatever demand surfaces next. The 2.0 plan is fully delivered
-(ROADMAP-V2.md is historical).
+**Next up (suggested):** nothing is queued — 2.3.0 (named themes +
+wickchart-animate) is out, and the perf-budget CI gate (the last open
+Track-5 line) shipped as `e2e/perf.spec.mjs`. What's left on purpose: the
+deferred columnar store (reopen on profiler evidence,
+`docs/decisions/2.1.0-polish-track.md` D6) and whatever demand surfaces
+next. The 2.0 plan is fully delivered (ROADMAP-V2.md is historical).
 
-Each PR lands with the perf gate green (<1 ms default view, <8 ms max zoom-out).
+Each PR lands with the perf gate green (<1 ms default view, <8 ms max
+zoom-out) — enforced in CI by `e2e/perf.spec.mjs`, not just promised here.
