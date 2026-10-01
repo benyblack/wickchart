@@ -31,7 +31,7 @@ import {
   calcRealizedVol, volRegimeBands, percentileOfSorted, parseVolShading,
   windowSummary, normalizeOverlays, barIndexForTime, resolveOverlayColor,
   compileScript, predicateTrueSeries, scriptAlertStep,
-  brushStats, shapeSearch,
+  brushStats, shapeSearch, SHAPE_MAX_WINDOW,
   warnDeprecatedAlias,
 } from './core.js';
 
@@ -784,6 +784,7 @@ class WickChart extends HTMLElementBase {
       this._hover = null;
       this._needsFit = true;
       this._noMore = false;
+      if (this._shape) this._shape = null; // reached via setData([]) too
       this._updateAria();
       this._invalidate();
     }
@@ -867,6 +868,16 @@ class WickChart extends HTMLElementBase {
           this._computeDt();
           // keep the exact same bars on screen: every index shifts by `added`
           this._view.rightIndex += added;
+          // shape indices are data-bound too — rebase, don't drop: the bands
+          // should survive loading more history in front of them
+          if (this._shape) {
+            this._shape.i0 += added;
+            this._shape.i1 += added;
+            for (const m of this._shape.matches) {
+              m.i0 += added;
+              m.i1 += added;
+            }
+          }
           this._syncClosedIdx(); // backfill shifts indices, it closes nothing
           if (this._hover) this._hover.index = Math.min(this._hover.index + added, this._data.length - 1);
           this._clampView();
@@ -3989,6 +4000,9 @@ class WickChart extends HTMLElementBase {
         i1 = this._brushSel.i1;
       } else return null;
       if (i1 - i0 < 7) return null; // below the minimum window the search clamps to
+      // the search clamps the query length; clamp here too so the stored
+      // query, its band and the payload describe exactly what was searched
+      i1 = Math.min(i1, i0 + SHAPE_MAX_WINDOW - 1);
 
       const t0 = performance.now();
       const matches = shapeSearch(

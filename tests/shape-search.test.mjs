@@ -120,6 +120,15 @@ test('shapeSearch: maxMatches and the minScore floor', () => {
   assert.ok(strict.length <= loose.length);
 });
 
+test('shapeSearch: offset-invariant — a 1e9 baseline must not break matching', () => {
+  const s0 = [];
+  for (let r = 0; r < 5; r++) for (let i = 0; i < 30; i++) s0.push(100 + r + i * 0.5 + Math.sin(i) * 3);
+  const hi = s0.map((v) => v + 1e9); // high-valued instrument, same movement
+  const got = shapeSearch(hi, 60, 20, { maxMatches: 10 });
+  assert.deepEqual(got.map((x) => x.start).sort((a, b) => a - b), [0, 30, 90, 120]);
+  for (const m of got) assert.ok(Math.abs(m.score - 1) < 1e-6, `offset-corrupted score ${m.score}`);
+});
+
 test('shapeSearch: FFT path stays interactive at 100k bars (not O(n·m))', () => {
   const s = series(100_000, 42);
   const t0 = performance.now();
@@ -189,10 +198,30 @@ test('findShape: defaults to the brush selection; rejects unusable queries', () 
   assert.equal(f.findShape({ from: bars[10].time, to: bars[12].time }), null); // shorter than the floor
 });
 
+test('findShape: a range past the clamp reports exactly what was searched', () => {
+  const bars = mkBars(900);
+  const f = fakeChart(bars);
+  const res = f.findShape({ from: bars[20].time, to: bars[880].time });
+  assert.ok(res, 'search runs');
+  // the stored query spans SHAPE_MAX_WINDOW bars — no match can overlap it
+  assert.equal(f._shape.i1 - f._shape.i0, 749);
+  assert.equal(res.query.from, bars[20].time);
+  assert.equal(res.query.to, bars[20 + 749].time);
+  for (const m of f._shape.matches) {
+    assert.ok(m.i1 < f._shape.i0 || m.i0 > f._shape.i1, 'no match overlaps the reported query');
+  }
+});
+
 test('component contract: bands render, state clears with the data', () => {
   const src = read('src/wick-chart.js');
   assert.match(src, /hexToRgba\(pal\.accent, 0\.09\)/, 'match bands are drawn');
   assert.match(src, /hexToRgba\(pal\.up, 0\.14\)/, 'the query band is distinct');
   const sd = src.slice(src.indexOf('setData(bars) {'), src.indexOf('setData(bars) {') + 400);
   assert.match(sd, /this\._shape = null/, 'setData clears the shape result');
+  // setData([]) early-returns through clearData() — the reset must live there too
+  const cd = src.slice(src.indexOf('clearData() {'), src.indexOf('clearData() {') + 400);
+  assert.match(cd, /this\._shape = null/, 'clearData clears the shape result');
+  // backfill prepends shift every index; the shape result rebases, not drops
+  const bf = src.slice(src.indexOf('mergeOlderData(this._data, older)'), src.indexOf('mergeOlderData(this._data, older)') + 700);
+  assert.match(bf, /this\._shape\.i0 \+= added/, 'backfill rebases the shape indices');
 });

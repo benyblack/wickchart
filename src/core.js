@@ -936,6 +936,11 @@ export function calcSuperTrend(bars, period = 10, mult = 3) {
  * Shape search — z-normalized subsequence similarity (MASS-style)
  * ------------------------------------------------------------------ */
 
+/** Query-length cap: searching stays interactive and the bands stay
+ * readable. Exported so the chart wrapper clamps the *reported* query to
+ * what was actually searched. */
+export const SHAPE_MAX_WINDOW = 750;
+
 /** In-place iterative radix-2 complex FFT. `re`/`im` are power-of-two
  * length; `inverse` scales by 1/n (the convolution round-trip needs it). */
 function fft(re, im, inverse) {
@@ -1032,33 +1037,42 @@ export function shapeSearch(series, qStart, qLen, opts = {}) {
   const n = series.length;
   const maxMatches = opts.maxMatches ?? 8;
   const minScore = opts.minScore ?? -1;
-  const m = Math.min(750, Math.max(8, Math.round(qLen)));
+  const m = Math.min(SHAPE_MAX_WINDOW, Math.max(8, Math.round(qLen)));
   const qs = Math.max(0, Math.min(n - m, Math.round(qStart)));
   if (n < m + 2) return [];
 
+  // Z-normalization is offset-invariant in exact arithmetic, but the raw
+  // moments below (E[x²] − E[x]²) are not: with a large price baseline the
+  // subtraction cancels catastrophically and real movement reads as flat.
+  // Shift everything by the first value once; the residual scale is the
+  // movement, and every statistic after this is computed on it.
+  const base = series[0];
+  const x = new Float64Array(n);
+  for (let i = 0; i < n; i++) x[i] = series[i] - base;
+
   // z-normalize the query; a flat query has no shape to find
   let mu = 0;
-  for (let j = 0; j < m; j++) mu += series[qs + j];
+  for (let j = 0; j < m; j++) mu += x[qs + j];
   mu /= m;
   let qsig = 0;
   for (let j = 0; j < m; j++) {
-    const dv = series[qs + j] - mu;
+    const dv = x[qs + j] - mu;
     qsig += dv * dv;
   }
   qsig = Math.sqrt(qsig / m);
   if (!(qsig > 1e-12)) return [];
   const q = new Float64Array(m);
-  for (let j = 0; j < m; j++) q[j] = (series[qs + j] - mu) / qsig;
+  for (let j = 0; j < m; j++) q[j] = (x[qs + j] - mu) / qsig;
 
   // window sums for candidate means/stdevs (population)
   const csum = new Float64Array(n + 1);
   const csq = new Float64Array(n + 1);
   for (let i = 0; i < n; i++) {
-    csum[i + 1] = csum[i] + series[i];
-    csq[i + 1] = csq[i] + series[i] * series[i];
+    csum[i + 1] = csum[i] + x[i];
+    csq[i + 1] = csq[i] + x[i] * x[i];
   }
 
-  const qt = slidingDot(series, q);
+  const qt = slidingDot(x, q);
   const cand = n - m + 1;
   const d2 = new Float64Array(cand); // squared z-normalized distance, Infinity = skip
   for (let i = 0; i < cand; i++) {
