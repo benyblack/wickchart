@@ -31,7 +31,7 @@ import {
   calcRealizedVol, volRegimeBands, percentileOfSorted, parseVolShading,
   windowSummary, normalizeOverlays, barIndexForTime, resolveOverlayColor,
   compileScript, predicateTrueSeries, scriptAlertStep,
-  brushStats,
+  brushStats, shapeSearch,
   warnDeprecatedAlias,
 } from './core.js';
 
@@ -325,6 +325,8 @@ class WickChart extends HTMLElementBase {
       this._brush = false;
       this._brushSel = null; // { i0, i1, stats } — the committed selection
       this._brushDrag = null; // { i0, i1 } — while the pointer is down
+      // shape-search result: { i0, i1, matches: [{ i0, i1, distance, score }], duration }
+      this._shape = null;
       this._ind = { overlays: [], panes: [], volume: true };
 
       // worker compute path (see _indicatorSeries): built-in indicators over
@@ -682,6 +684,7 @@ class WickChart extends HTMLElementBase {
       }
       // selection indices are data-bound; a replacement invalidates them
       if (this._brushSel || this._brushDrag) this.clearBrush();
+      if (this._shape) this._shape = null; // indices are data-bound too
       const norm = [];
       for (const b of bars) {
         const nb = WickChart._normBar(b);
@@ -2218,6 +2221,23 @@ class WickChart extends HTMLElementBase {
             }
           }
           flushRun(runVal, runA, i1);
+        }
+      }
+
+      /* shape-search result: translucent bands over the query (accent-up)
+       * and each match (accent), behind the series like the other context. */
+      if (this._shape) {
+        const s = this._shape;
+        if (s.i1 < d.length) {
+          const band = (a, b, fill) => {
+            const xa = clamp(this._xFor(a) - sp * 0.5, 0, plotRight);
+            const xb = clamp(this._xFor(b) + sp * 0.5, 0, plotRight);
+            if (xb <= xa) return;
+            ctx.fillStyle = fill;
+            ctx.fillRect(xa, main.y0, xb - xa, main.h);
+          };
+          for (const m of s.matches) band(m.i0, m.i1, hexToRgba(pal.accent, 0.09));
+          band(s.i0, s.i1, hexToRgba(pal.up, 0.14));
         }
       }
 
@@ -3935,6 +3955,83 @@ class WickChart extends HTMLElementBase {
       if (!this._brushSel) return null;
       const { i0, i1, stats } = this._brushSel;
       return { i0, i1, stats: { ...stats, from: { ...stats.from }, to: { ...stats.to } } };
+    }
+
+    /**
+     * Find every occurrence of a shape across the loaded history, ranked by
+     * z-normalized similarity (mean-removed, unit-variance — matches are
+     * about shape, not price level or amplitude). One O(n log n) FFT pass,
+     * so any history length stays interactive. Overlapping windows collapse
+     * greedily; the query window itself is excluded.
+     *
+     * The result renders as translucent bands (the query in one color, its
+     * matches in another) until `clearShape()`; a `wick:shape` event carries
+     * the same payload. Data replacement (`setData`) clears it.
+     *
+     * @param {{from?: number, to?: number, maxMatches?: number, minScore?: number}} [q]
+     *   `{from, to}` bar times in ms — defaults to the current brush
+     *   selection when omitted. `minScore` is a Pearson-correlation floor
+     *   (−1..1; 0.8 is a strong shape match).
+     * @returns {object|null} `{ query: {from, to}, matches: [{from, to,
+     *   distance, score}], duration }`, or null when no usable query exists.
+     */
+    findShape(q = {}) {
+      const d = this._data;
+      if (!d.length) return null;
+      let i0;
+      let i1;
+      if (q.from != null && q.to != null) {
+        i0 = WickChart._indexForTime(d, WickChart._timeToMs(q.from));
+        i1 = WickChart._indexForTime(d, WickChart._timeToMs(q.to));
+        if (i0 > i1) [i0, i1] = [i1, i0];
+      } else if (this._brushSel) {
+        i0 = this._brushSel.i0;
+        i1 = this._brushSel.i1;
+      } else return null;
+      if (i1 - i0 < 7) return null; // below the minimum window the search clamps to
+
+      const t0 = performance.now();
+      const matches = shapeSearch(
+        d.map((b) => b.close),
+        i0,
+        i1 - i0 + 1,
+        { maxMatches: q.maxMatches ?? 8, minScore: q.minScore ?? -1 }
+      );
+      const duration = performance.now() - t0;
+      this._shape = {
+        i0,
+        i1,
+        matches: matches.map((m) => ({ i0: m.start, i1: m.start + m.length - 1, distance: m.distance, score: m.score })),
+        duration,
+      };
+      this._invalidate();
+      this._fire('shape', this.shapeResult);
+      return this.shapeResult;
+    }
+
+    /** Clear the rendered shape-search result (if any). */
+    clearShape() {
+      if (this._shape) {
+        this._shape = null;
+        this._invalidate();
+      }
+    }
+
+    /** @returns {object|null} a time-based copy of the current shape result */
+    get shapeResult() {
+      const s = this._shape;
+      const d = this._data;
+      if (!s || !d.length) return null;
+      return {
+        query: { from: d[s.i0].time, to: d[s.i1].time },
+        matches: s.matches.map((m) => ({
+          from: d[m.i0].time,
+          to: d[m.i1].time,
+          distance: m.distance,
+          score: m.score,
+        })),
+        duration: s.duration,
+      };
     }
 
     _emitRange() {

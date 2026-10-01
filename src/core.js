@@ -933,6 +933,173 @@ export function calcSuperTrend(bars, period = 10, mult = 3) {
 }
 
 /* ------------------------------------------------------------------ *
+ * Shape search — z-normalized subsequence similarity (MASS-style)
+ * ------------------------------------------------------------------ */
+
+/** In-place iterative radix-2 complex FFT. `re`/`im` are power-of-two
+ * length; `inverse` scales by 1/n (the convolution round-trip needs it). */
+function fft(re, im, inverse) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j |= bit;
+    if (i < j) {
+      let t = re[i]; re[i] = re[j]; re[j] = t;
+      t = im[i]; im[i] = im[j]; im[j] = t;
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = ((inverse ? 2 : -2) * Math.PI) / len;
+    const wr = Math.cos(ang);
+    const wi = Math.sin(ang);
+    const half = len >> 1;
+    for (let i = 0; i < n; i += len) {
+      let cr = 1;
+      let ci = 0;
+      for (let k = 0; k < half; k++) {
+        const a = i + k;
+        const b = a + half;
+        const vr = re[b] * cr - im[b] * ci;
+        const vi = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - vr;
+        im[b] = im[a] - vi;
+        re[a] += vr;
+        im[a] += vi;
+        const t = cr * wr - ci * wi;
+        ci = cr * wi + ci * wr;
+        cr = t;
+      }
+    }
+  }
+  if (inverse) for (let i = 0; i < n; i++) {
+    re[i] /= n;
+    im[i] /= n;
+  }
+}
+
+/**
+ * Sliding dot products QT(i) = Σ_j q[j]·x[i+j], via one FFT round-trip —
+ * O(n log n) where the naive loop is O(n·m).
+ * @param {number[]|Float64Array} x
+ * @param {Float64Array} q
+ * @returns {Float64Array} length n − m + 1
+ */
+function slidingDot(x, q) {
+  const n = x.length;
+  const m = q.length;
+  let N = 1;
+  while (N < n + m - 1) N <<= 1;
+  const ar = new Float64Array(N);
+  const ai = new Float64Array(N);
+  const br = new Float64Array(N);
+  const bi = new Float64Array(N);
+  for (let i = 0; i < n; i++) ar[i] = x[i];
+  for (let j = 0; j < m; j++) br[j] = q[m - 1 - j]; // reversed → correlation
+  fft(ar, ai, false);
+  fft(br, bi, false);
+  for (let i = 0; i < N; i++) {
+    const r = ar[i] * br[i] - ai[i] * bi[i];
+    const v = ar[i] * bi[i] + ai[i] * br[i];
+    ar[i] = r;
+    ai[i] = v;
+  }
+  fft(ar, ai, true);
+  // convolution with the reversed query lands QT(i) at offset m − 1 + i
+  return ar.slice(m - 1, m - 1 + (n - m + 1));
+}
+
+/** Find occurrences of the shape at `qStart..qStart+qLen-1` anywhere in
+ * `series`, ranked by z-normalized Euclidean distance (both the query and
+ * every candidate window are mean-removed and scaled to unit variance, so
+ * matches are about *shape*, not price level or amplitude).
+ *
+ * The distance comes from a single FFT round-trip (MASS-style sliding dot
+ * products plus prefix sums for window statistics), so a search over any
+ * history is O(n log n), not O(n·m). Windows overlapping the query (or an
+ * already-accepted match) are excluded greedily, so near-duplicate
+ * neighbours collapse instead of filling the list.
+ *
+ * @param {number[]} series
+ * @param {number} qStart query window start index
+ * @param {number} qLen query window length (clamped to 8..750)
+ * @param {{maxMatches?: number, minScore?: number}} [opts]
+ * @returns {{start: number, length: number, distance: number, score: number}[]}
+ *   `score` is the Pearson correlation of the z-normalized shapes
+ *   (1 = identical, 0 = unrelated, −1 = inverted).
+ */
+export function shapeSearch(series, qStart, qLen, opts = {}) {
+  const n = series.length;
+  const maxMatches = opts.maxMatches ?? 8;
+  const minScore = opts.minScore ?? -1;
+  const m = Math.min(750, Math.max(8, Math.round(qLen)));
+  const qs = Math.max(0, Math.min(n - m, Math.round(qStart)));
+  if (n < m + 2) return [];
+
+  // z-normalize the query; a flat query has no shape to find
+  let mu = 0;
+  for (let j = 0; j < m; j++) mu += series[qs + j];
+  mu /= m;
+  let qsig = 0;
+  for (let j = 0; j < m; j++) {
+    const dv = series[qs + j] - mu;
+    qsig += dv * dv;
+  }
+  qsig = Math.sqrt(qsig / m);
+  if (!(qsig > 1e-12)) return [];
+  const q = new Float64Array(m);
+  for (let j = 0; j < m; j++) q[j] = (series[qs + j] - mu) / qsig;
+
+  // window sums for candidate means/stdevs (population)
+  const csum = new Float64Array(n + 1);
+  const csq = new Float64Array(n + 1);
+  for (let i = 0; i < n; i++) {
+    csum[i + 1] = csum[i] + series[i];
+    csq[i + 1] = csq[i] + series[i] * series[i];
+  }
+
+  const qt = slidingDot(series, q);
+  const cand = n - m + 1;
+  const d2 = new Float64Array(cand); // squared z-normalized distance, Infinity = skip
+  for (let i = 0; i < cand; i++) {
+    const mean = (csum[i + m] - csum[i]) / m;
+    const sig = Math.sqrt(Math.max(0, (csq[i + m] - csq[i]) / m - mean * mean));
+    if (i < qs + m && qs < i + m) {
+      d2[i] = Infinity; // overlaps the query itself
+      continue;
+    }
+    if (!(sig > 1e-12)) {
+      d2[i] = Infinity; // flat window — no shape correlation defined
+      continue;
+    }
+    // u·v = QT(i)/σi (Σq̇ = 0), dist² = 2m − 2·u·v
+    let rho = qt[i] / (m * sig);
+    if (rho > 1) rho = 1;
+    else if (rho < -1) rho = -1;
+    d2[i] = 2 * m * (1 - rho);
+  }
+
+  // greedy non-overlapping selection, best distance first
+  const order = Array.from({ length: cand }, (_, i) => i).filter((i) => d2[i] !== Infinity);
+  order.sort((a, b) => d2[a] - d2[b]);
+  const out = [];
+  const taken = [];
+  for (const i of order) {
+    if (out.length >= maxMatches) break;
+    if (1 - d2[i] / (2 * m) < minScore) break; // sorted ascending → the rest only score lower
+    if (taken.some((t) => Math.abs(i - t) < m)) continue;
+    taken.push(i);
+    out.push({
+      start: i,
+      length: m,
+      distance: Math.sqrt(d2[i]),
+      score: 1 - d2[i] / (2 * m),
+    });
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ *
  * Data merging & gaps
  * ------------------------------------------------------------------ */
 

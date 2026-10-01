@@ -49,7 +49,7 @@
     window.chart = chart;
 
     /** Events the specs assert on, recorded in arrival order. */
-    window.events = { range: [], alert: [], crosshair: [] };
+    window.events = { range: [], alert: [], crosshair: [], shape: [] };
     for (const name of Object.keys(window.events)) {
       chart.addEventListener('wick:' + name, (e) => window.events[name].push(e.detail));
     }
