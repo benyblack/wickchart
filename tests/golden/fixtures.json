@@ -8511,6 +8511,40 @@
      }
     ]
    }
+  },
+  {
+   "id": "shapesearch-90-24",
+   "fn": "shapeSearch",
+   "input": "walk150",
+   "params": [
+    90,
+    24
+   ],
+   "note": "z-normalized similarity via FFT, greedy non-overlapping exclusion (cross-checked against a brute-force O(n\u00b7m) reference)",
+   "expected": {
+    "shape": [
+     {
+      "start": 66,
+      "score": 0.44205775371,
+      "distance": 5.17505824333
+     },
+     {
+      "start": 5,
+      "score": -0.107845862019,
+      "distance": 7.29222883465
+     },
+     {
+      "start": 115,
+      "score": -0.320880273861,
+      "distance": 7.96255318006
+     },
+     {
+      "start": 30,
+      "score": -0.449144597475,
+      "distance": 8.3402002781
+     }
+    ]
+   }
   }
  ]
 }

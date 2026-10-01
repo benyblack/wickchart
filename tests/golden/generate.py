@@ -373,6 +373,40 @@ def ref_realizedvol(closes, period):
     return nulls(r.rolling(period, min_periods=period).std(ddof=0))
 
 
+def ref_shape_search(series, q_start, q_len, max_matches=8):
+    """Brute-force z-normalized search — direct per-window normalization and
+    dot products, O(n·m), the same greedy non-overlapping selection. No FFT
+    anywhere: an algebraically independent check of shapeSearch."""
+    s = np.asarray(series, dtype="float64")
+    m, n = q_len, len(s)
+    qs = q_start
+    q = s[qs:qs + m]
+    qmu, qsd = q.mean(), q.std()
+    if not (qsd > 1e-12):
+        return []
+    out = []
+    for i in range(0, n - m + 1):
+        if i < qs + m and qs < i + m:
+            continue
+        w = s[i:i + m]
+        sd = w.std()
+        if sd < 1e-12:
+            continue
+        rho = float(np.clip((((q - qmu) / qsd) @ ((w - w.mean()) / sd)) / m, -1, 1))
+        out.append((i, 2 * m * (1 - rho)))
+    out.sort(key=lambda t: t[1])
+    taken, res = [], []
+    for i, d2 in out:
+        if len(res) >= max_matches:
+            break
+        if any(abs(i - t) < m for t in taken):
+            continue
+        taken.append(i)
+        res.append({"start": i, "score": float(f"{1 - d2 / (2 * m):.12g}"),
+                    "distance": float(f"{math.sqrt(d2):.12g}")})
+    return res
+
+
 def ref_heikinashi(bars):
     out = []
     po = pc = None
@@ -560,6 +594,10 @@ def main():
         ("heikinashi", "calcHeikinAshi", "walk150", [],
          "ha-close = ohlc/4; ha-open recursive, first = (o+c)/2",
          {"bars": ref_heikinashi(w150)}),
+        ("shapesearch-90-24", "shapeSearch", "walk150", [90, 24],
+         "z-normalized similarity via FFT, greedy non-overlapping exclusion "
+         "(cross-checked against a brute-force O(n·m) reference)",
+         {"shape": ref_shape_search([b["close"] for b in w150], 90, 24)}),
     ]
 
     xc = crosscheck()

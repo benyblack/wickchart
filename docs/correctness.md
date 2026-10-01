@@ -77,6 +77,7 @@ deterministic seed), `tiny10`, and `macdline150` (leading-nulls input).
 | `calcIchimoku` | senkouB | [9, 26, 52, 26] | 99 |
 | `calcIchimoku` | chikou | [9, 26, 52, 26] | 124 |
 | `calcHeikinAshi` | bars | [] | 150 bars |
+| `shapeSearch` | shape | [90, 24] | 4 |
 
 ## Third-party (`ta`) cross-check
 
