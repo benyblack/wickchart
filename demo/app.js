@@ -521,6 +521,30 @@ document.getElementById('explain-copy').addEventListener('click', async () => {
   }
 });
 
+/* ---------------- shape search (find this window's shape everywhere) ---------------- */
+
+document.getElementById('btn-shape').addEventListener('click', (e) => {
+  if (chart.shapeResult) {
+    chart.clearShape();
+    e.currentTarget.setAttribute('aria-pressed', 'false');
+    toast('Shape bands cleared.');
+    return;
+  }
+  const r = chart.getVisibleRange();
+  const res = r && chart.findShape({ from: r.from, to: r.to });
+  if (!res) {
+    toast('Zoom in a little — the shape needs at least 8 bars.');
+    return;
+  }
+  e.currentTarget.setAttribute('aria-pressed', 'true');
+  const best = res.matches[0];
+  toast(
+    `${res.matches.length} match${res.matches.length === 1 ? '' : 'es'} in ${res.duration.toFixed(0)} ms` +
+      (best ? ` — best score ${best.score.toFixed(2)}` : '') +
+      '. Bands show the query (green) and its matches; press again to clear.'
+  );
+});
+
 document.getElementById('btn-coview').addEventListener('click', (e) => {
   const on = e.currentTarget.getAttribute('aria-pressed') !== 'true';
   e.currentTarget.setAttribute('aria-pressed', String(on));

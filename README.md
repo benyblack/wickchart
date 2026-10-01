@@ -570,6 +570,32 @@ Brush mode replaces plain-drag panning (shift-drag still measures);
 replacing the dataset clears a committed selection. `brushStats` is
 exported from `wickchart/core`.
 
+### Shape search — find this pattern everywhere
+
+`findShape()` takes a bar range (or defaults to the current brush
+selection) and finds every occurrence of that **shape** across the whole
+loaded history — z-normalized similarity, so a match is about form, not
+price level or amplitude: a dip that looks like your query matches at any
+scale. One O(n log n) FFT pass (MASS-style sliding dot products) keeps any
+history length interactive, and overlapping windows collapse greedily so
+the list isn't full of near-duplicates.
+
+```js
+chart.findShape({ from, to, maxMatches = 8, minScore }); // no args → the brush selection
+chart.addEventListener('wick:shape', (e) => {
+  // { query: {from, to}, matches: [{from, to, distance, score}], duration }
+});
+chart.shapeResult; // the same payload | null
+chart.clearShape();
+```
+
+`score` is the Pearson correlation of the z-normalized shapes (1 =
+identical, −1 = inverted; 0.8 reads as a strong match). The result renders
+as translucent bands — the query in one color, its matches in another —
+until `clearShape()` or a `setData()` replacement. `shapeSearch` (the
+math) is exported from `wickchart/core` and carries golden vectors in
+`docs/correctness.md`.
+
 ### Story mode — guided tours of chart state
 
 A **story** is an array of **scenes** (view range, type, indicators,
@@ -1045,6 +1071,8 @@ the other.
 | `fit()`                         | Reset zoom to the default view (~150 bars)        |
 | `getVisibleRange()`             | → `{ from, to }` (ms timestamps)                  |
 | `setVisibleRange({from, to})`   | Jump to a time window                             |
+| `findShape({from, to, …})`      | Z-normalized shape search → ranked matches + bands |
+| `clearShape()` / `shapeResult`  | Clear the bands / read back the last result        |
 | `exportPNG()`                   | → PNG data URL of the current canvas              |
 | `getDataWindow()`               | → AI-ready summary of the visible window (see below) |
 | `getState()`                    | → serializable snapshot (type, indicators, view, positions, alerts) |
@@ -1173,6 +1201,8 @@ Reflected properties (`chart.type = 'line'`) work for `theme`, `type`, `label`,
 | `wick:crosshair` | `{ index, bar, x, y, price }` on hover / arrows, `null` on leave |
 | `wick:range`     | `{ from, to }` after zoom / pan / jump                      |
 | `wick:select`    | `{ index, bar, price }` on click/tap (e.g. open an order form at that price) |
+| `wick:brush`     | `{ bars, from, to, delta, deltaPct, high, low, volume }` after a brush selection |
+| `wick:shape`     | `{ query: {from, to}, matches: [{from, to, distance, score}], duration }` from `findShape()` |
 
 ## Theming
 

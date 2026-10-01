@@ -28,7 +28,7 @@ const { meta, inputs, cases } = JSON.parse(
 // kernels); the closes are extracted here.
 const CLOSE_BASED = new Set([
   'calcSMA', 'calcEMA', 'calcWMA', 'calcStdDev', 'calcRSI', 'calcBollinger', 'calcMACD',
-  'calcRealizedVol',
+  'calcRealizedVol', 'shapeSearch',
 ]);
 
 const resolveInput = (c) => {
@@ -81,6 +81,24 @@ for (const c of cases) {
     assert.ok(typeof fn === 'function', `${c.fn} is not exported from core.js`);
     const out = fn(resolveInput(c), ...c.params);
     for (const [name, want] of Object.entries(c.expected)) {
+      if (name === 'shape') {
+        // shapeSearch returns a ranked match list, not a series: starts must
+        // match exactly (they are integer indices), scores/distances within
+        // tolerance — the FFT path vs the brute-force reference
+        assert.ok(Array.isArray(out), `${c.id}: kernel returned no match list`);
+        assert.equal(out.length, want.length, `${c.id}: match count ${out.length} ≠ ${want.length}`);
+        for (let i = 0; i < want.length; i++) {
+          assert.equal(out[i].start, want[i].start, `${c.id}.match[${i}].start`);
+          for (const k of ['score', 'distance']) {
+            const limit = ATOL + RTOL * Math.abs(want[i][k]);
+            assert.ok(
+              Math.abs(out[i][k] - want[i][k]) <= limit,
+              `${c.id}.match[${i}].${k}: got ${out[i][k]}, want ${want[i][k]}`
+            );
+          }
+        }
+        continue;
+      }
       if (name === 'bars') {
         // calcHeikinAshi returns bar objects, not series
         assert.equal(out.length, want.length, `${c.id}: bars length`);
@@ -106,12 +124,11 @@ for (const c of cases) {
 
 test('golden: summary', () => {
   // Coverage is derived from the module's own exports, not counted: every
-  // exported calc* kernel must have at least one fixture, and every fixture
+  // exported math kernel must have at least one fixture, and every fixture
   // fn must be a real exported kernel. A swapped-out kernel or a duplicate
   // case can no longer hide behind the case count.
-  const exported = new Set(
-    Object.keys(core).filter((k) => /^calc[A-Z]/.test(k) && typeof core[k] === 'function')
-  );
+  const isKernel = (k) => (/^calc[A-Z]/.test(k) || k === 'shapeSearch') && typeof core[k] === 'function';
+  const exported = new Set(Object.keys(core).filter(isKernel));
   const covered = new Set(cases.map((c) => c.fn));
   const missing = [...exported].filter((k) => !covered.has(k));
   const unknown = [...covered].filter((k) => !exported.has(k));
