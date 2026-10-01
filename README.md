@@ -1259,6 +1259,10 @@ desktop (Chromium, 1100×760, all indicators on: SMA + EMA + RSI + volume):
 | Streaming tick (update + full re-render)   | 0.5–19 ms       |
 
 A 60 fps frame budget is 16.7 ms, so the default view uses ~1% of a frame.
+Those bars are enforced, not aspirational: `e2e/perf.spec.mjs` fails CI when
+a full render — timed in a real browser on a 50k-bar history, read as the
+median of batched samples — exceeds 1 ms at the default view or 8 ms at max
+zoom-out.
 Hot paths are deliberately allocation-light: date labels are built lazily only
 for actual axis ticks (with cached `Intl.DateTimeFormat`s), and candles/volume
 are drawn in two batched passes by direction instead of one draw call per bar.
