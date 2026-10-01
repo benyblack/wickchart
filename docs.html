@@ -213,6 +213,7 @@
         <li><a href="#trading">Positions &amp; alerts</a></li>
         <li><a href="#analysis">Stats, profile &amp; annotations</a></li>
         <li><a href="#brush">Delta brush<span class="new-pill">NEW</span></a></li>
+        <li><a href="#shape">Shape search<span class="new-pill">NEW</span></a></li>
         <li><a href="#ai">AI-ready data window</a></li>
         <li><a href="#feeds">Feeds (&lt;wick-feed&gt;)</a></li>
         <li><a href="#worker">Worker compute path<span class="new-pill">NEW</span></a></li>
@@ -621,6 +622,24 @@ chart.<span class="attr">clearBrush</span>();        <span class="cmt">// Esc do
           <wick-feed for="ex-br" demo="BTC" tf="1h" limit="400"></wick-feed>
           <wick-chart id="ex-br" label="BTC · 1h · delta brush" brush></wick-chart>
           <div class="foot" id="br-foot">drag across the candles — release to commit · Esc clears</div>
+        </div>
+      </section>
+
+      <section id="shape">
+        <h2>Shape search <a class="anchor" href="#shape">#</a> <span class="pill new">NEW</span></h2>
+        <p><code>findShape()</code> finds every occurrence of a bar range's <b>shape</b> across the whole loaded history — z-normalized similarity, so a match is about form, not price level or amplitude: the dip you're looking at matches at any scale. One O(n log n) FFT pass keeps any history interactive; overlapping windows collapse greedily.</p>
+        <div class="codewrap"><pre class="code">chart.<span class="attr">findShape</span>({ from, to, maxMatches, minScore }); <span class="cmt">// no args → the brush selection</span>
+chart.addEventListener(<span class="str">'wick:shape'</span>, (e) =&gt; {
+  <span class="cmt">// e.detail = { query: {from, to}, matches: [{from, to, distance, score}], duration }</span>
+});
+chart.<span class="attr">clearShape</span>();       <span class="cmt">// bands stay until this or a setData()</span></pre></div>
+        <div class="note"><code>score</code> is the Pearson correlation of the z-normalized shapes — 1 is identical, −1 inverted, 0.8 a strong match. The math (<code>shapeSearch</code> from <code>wickchart/core</code>) carries golden vectors in <a href="https://github.com/benyblack/wickchart/blob/main/docs/correctness.md">the correctness matrix</a>.</div>
+
+        <div class="demo-card">
+          <div class="demo-head"><span class="t">Live</span><span class="spacer"></span><button class="primary" id="shape-run">findShape(visible range)</button></div>
+          <wick-feed for="ex-sh" demo="BTC" tf="1h" limit="500"></wick-feed>
+          <wick-chart id="ex-sh" label="BTC · 1h · shape search"></wick-chart>
+          <div class="foot" id="shape-foot">press to find the visible window's shape across all 500 bars — again to clear</div>
         </div>
       </section>
 
@@ -1390,6 +1409,22 @@ nav.<span class="attr">detach</span>();  <span class="cmt">// everything detache
       const out = $('ai-out');
       out.style.display = 'block';
       out.textContent = $('ex-ai').getDataWindow().text;
+    });
+
+    /* ---------- shape search ---------- */
+    $('shape-run').addEventListener('click', () => {
+      const c = $('ex-sh');
+      if (c.shapeResult) {
+        c.clearShape();
+        $('shape-foot').textContent = 'cleared — press to search again';
+        return;
+      }
+      const r = c.getVisibleRange();
+      const res = r && c.findShape({ from: r.from, to: r.to });
+      $('shape-foot').textContent = res
+        ? `${res.matches.length} matches in ${res.duration.toFixed(0)} ms — best score ` +
+          `${res.matches[0] ? res.matches[0].score.toFixed(2) : '—'} · press to clear`
+        : 'zoom in a little — the query needs at least 8 bars';
     });
 
     /* ---------- report export ---------- */
