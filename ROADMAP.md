@@ -38,8 +38,8 @@ Effort: **S** ≤ a day · **M** a few days · **L** a week+. Spans 2.4 → 3.0
 
 | Feature | What & why | Effort | Notes |
 |---|---|---|---|
-| **Single-file export** | `exportChart({ standalone: true })` → one self-contained `.html`: the module inlined, the state JSON, optional story/scenario, opens offline. Send a *chart*, not a screenshot. | M | Only possible because the whole library is one zero-dependency module — the constraint pays off. Same machinery exports narrated stories as playable files. |
-| Open a shared chart | Drag a shared file onto any page with the element → state restores (or self-opens standalone). | S | The inverse of export; makes the artifact round-trip. |
+| ~~**Single-file export**~~ ✅ shipped | `exportChart({ standalone: true })` → one self-contained `.html`: the module inlined, the state JSON, optional story/scenario, opens offline. Send a *chart*, not a screenshot. | M | Landed as the `wickchart-share` plugin (3 KB gz, own budget — the main entry keeps its headroom): modules inlined as base64 data-URL modules with the core-import rewritten, state+bars payload applied via setState→setData, `<` escaped so nothing can terminate a script block. e2e proves the file re-paints offline from a blob URL with no network. Story/scenario payloads are a follow-up. |
+| ~~Open a shared chart~~ ✅ shipped | Drag a shared file onto any page with the element → state restores (or self-opens standalone). | S | The exported file self-opens standalone; `parseChartFile()` reads one back into `{bars, state, meta}` for host-side import. |
 | SVG snapshot | The same draw model emitted as vector SVG — print/docs quality, tiny files. | S–M | The interesting engineering: a thin command-recorder between the draw calls and the canvas context, with an SVG emitter behind it. `exportPNG`/report reuse it. |
 | P2P co-view (stretch) | Today's co-view syncs *tabs* (BroadcastChannel). WebRTC data channels with copy-paste signaling sync *people* — shared cursors and drawings, still zero backend. | M–L | Deliberately last in the track: signaling without a server is clunky to demo solo; lands only if the rest of the track clears early. |
 
@@ -76,7 +76,7 @@ BroadcastChannel only), dependencies of any kind, a build step.
    rigor artifact lands first and everything after cites it. *M* ✅ shipped
 2. **Shape & pattern search** — the flagship feature; built on tested
    ground. *L* ✅ shipped
-3. **Single-file export + open** — the zero-dep flex nobody else can copy. *M*
+3. **Single-file export + open** — the zero-dep flex nobody else can copy. *M* ✅ shipped
 4. **Briefing mode** — cheap, composes existing parts into a visible wow. *S–M*
 5. **Fuzz + deterministic replay harness** — the third CI gate. *M*
 

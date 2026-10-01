@@ -1,0 +1,29 @@
+{
+  "name": "wickchart-share",
+  "version": "0.1.0",
+  "description": "The chart as a file for wickchart — exportChart() produces one self-contained .html (library sources + state + bars inlined) that opens offline. Opt-in plugin, zero dependencies, zero core changes.",
+  "type": "module",
+  "main": "share.mjs",
+  "module": "share.mjs",
+  "exports": {
+    ".": "./share.mjs"
+  },
+  "files": [
+    "share.mjs",
+    "README.md"
+  ],
+  "keywords": [
+    "chart",
+    "charting",
+    "share",
+    "export",
+    "single-file",
+    "offline",
+    "web-component",
+    "wickchart"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "wickchart": ">=2.3"
+  }
+}

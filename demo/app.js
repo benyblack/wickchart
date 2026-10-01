@@ -521,6 +521,22 @@ document.getElementById('explain-copy').addEventListener('click', async () => {
   }
 });
 
+/* ---------------- share: the chart as one self-contained file ---------------- */
+
+let shareApi = null;
+document.getElementById('btn-share').addEventListener('click', async () => {
+  try {
+    if (!shareApi) {
+      const { attachShare } = await import('../plugins/share/share.mjs');
+      shareApi = attachShare(chart);
+    }
+    const html = await shareApi.downloadChart('wickchart.html');
+    toast(`Downloaded one ${(html.length / 1024).toFixed(0)} KB .html — open it anywhere, no network needed.`);
+  } catch (err) {
+    toast('Share failed: ' + err.message);
+  }
+});
+
 /* ---------------- shape search (find this window's shape everywhere) ---------------- */
 
 document.getElementById('btn-shape').addEventListener('click', (e) => {
