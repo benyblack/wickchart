@@ -1330,12 +1330,14 @@ screenshots, generate baselines on the platform that will run them:
 WICK_E2E_VISUAL=1 npm run test:e2e -- --update-snapshots
 ```
 
-## Roadmap ideas
+## Roadmap
 
-- More overlays (Bollinger, VWAP), MACD pane, drawing tools
-- Data callbacks (`loadMore` for infinite history)
-- Incremental (O(1)) indicator updates for high-frequency streaming
-- Min/max downsampling and/or an offscreen hover layer if profiling ever demands
+The next phase targets two summits — chart intelligence (shape/pattern
+search, an AI chart copilot) and provable correctness & scale
+(golden-vector indicator testing, fuzz/replay, the 5M-bar columnar store) —
+plus chart-as-artifact sharing on the side and a 3.0 hygiene cut to close.
+Full plan: [ROADMAP.md](./ROADMAP.md); the shipped 1.x–2.x plan is archived
+as [ROADMAP-1.x-2.x.md](./ROADMAP-1.x-2.x.md).
 
 ## Migrating from 1.x to 2.x
 

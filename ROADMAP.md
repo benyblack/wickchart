@@ -1,129 +1,86 @@
-# WickChart Roadmap
+# WickChart Roadmap — v3
 
-North star: **"TradingView-class usefulness inside a zero-dependency custom element."**
-Every feature must survive the test: *one tag, zero build step, sane defaults*.
+North star: **"The most capable financial chart that runs on the raw web
+platform — capabilities no commercial platform ships, on correctness that
+can be checked, with zero dependencies and no build step."**
 
-Current state (v2.3.0): every feature track shipped (see the struck-through
-rows and CHANGELOG.md — through the 2.1 polish track, 2.2 ichimoku, 2.3
-named themes + the wickchart-animate plugin, 16 plugin packages total),
-plus the engineering track: the size-budget test family, the browser suite
-and the perf-budget CI gate.
+The 1.x–2.x roadmap shipped in full (see
+[ROADMAP-1.x-2.x.md](./ROADMAP-1.x-2.x.md) — every track,
+every line, through the perf-budget CI gate). It had no external demand
+signal to inherit (zero issues ever filed), so this roadmap is vision-led
+and serves a portfolio/craft goal: a reviewer skimming the repo should see
+things no chart library does *and* hard engineering they know is difficult.
+The strategy decisions behind this file are recorded in
+`docs/plans/2026-10-01-roadmap-v3-design.md`.
 
-**Done (2026-09):** the five recommended PRs below — loadMore backfill + gap
-dividers, indicator registry + Bollinger + MACD, positions/orders + alerts,
-stats panel + measure tool, getState/setState + URL sharing. Plus a security
-hardening pass (strict color validation for untrusted attribute input), the
-full indicator breadth (OHLC bars/hollow/Heikin-Ashi, step/baseline lines,
-VWAP/ATR/Stoch/OBV/Donchian/Keltner/CCI/WR/SuperTrend), the plugins hub,
-Playwright e2e, timezone-aware axes, and tick/volume/dollar bar aggregation
-on `<wick-feed>` (PR #61).
+Every item must survive two tests:
 
-Effort: **S** ≤ a day · **M** a few days · **L** a week+. Order within a track
-is suggested priority.
+1. **Raw web platform** — no backend, no toolchain, no binary blobs, no
+   dependencies. The constraints are the story, not a limitation to engineer
+   around.
+2. **Single-tag ergonomics** — one tag, sane defaults; everything opt-in
+   stays a plugin with its own budget.
 
----
-
-## Track 1 — Real-world data (make it drop-in for production apps)
-
-| Feature | What & why | Effort | Notes |
-|---|---|---|---|
-| History backfill (`loadMore`) | `chart.onloadmore = (fromTime) => Promise<bars>` — fetch older bars when the user scrolls past the left edge. Every serious app needs this. | M | Renderer is index-based: shift `rightIndex` by the prepended count to keep the view anchored. |
-| Session / gap handling | Optional axis "gap" dividers when bar intervals jump (weekends, market close). | S | x-axis is already index-space, so gaps compress naturally; only axis *labels* need honesty — boundary-based ticks already give most of this. Session shading shipped as the opt-in `wickchart-sessions` plugin instead of a core attr. |
-| ~~Second symbol overlay~~ ✅ shipped (plugin) | `wickchart-compare` — percent-rebase compare lines + ratio/diff derived series with a live legend, drawn against an invisible secondary scale. | S | New overlay series type; legend shows both. |
-| ~~Range navigator~~ ✅ shipped (plugin) | `wickchart-navigator` — full-dataset silhouette strip with a draggable viewport window; enabled the generic `insetBottom` dock hook in the core layer API. | S | The one plugin that needed a (small) core change. |
-| ~~Tick → bar aggregation~~ ✅ shipped | `aggregate="volume\|dollar\|tick"` on `<wick-feed>` — bars close on information, not the clock. Binance aggTrade WS + paginated aggTrades seed/backfill, offline synthetic prints for `demo=`, JSON trades endpoints for `url=`; pure `TickBarAggregator` exported from `wickchart/feed`. | M | Quant-grade feature no mainstream web chart ships built-in. |
-| ~~Multi-pane series sync~~ ✅ shipped (plugin) | `wickchart-grid` — `<wick-grid cols gap sync>` lays out N charts and keeps ranges + crosshairs in step (`wick:range`/`wick:crosshair` fan-out with echo suppression + clamp-cycle breaking; ghost crosshair via the layer API; `attachGrid()` for programmatic groups). | S | Track 1 complete. |
-
-## Track 2 — Series & indicators (breadth without bloat)
-
-| Feature | What & why | Effort | Notes |
-|---|---|---|---|
-| OHLC bars, hollow candles, Heikin-Ashi | Cheap breadth traders expect. | S | Transforms in the candle draw path. |
-| Baseline & step-line types | Round out `type=`. | S | |
-| Bollinger, VWAP, Donchian, PSAR | Most-requested overlays. | S each | Bollinger = SMA + rolling stdev; VWAP needs session anchor. |
-| MACD, Stochastic, OBV, ATR panes | The pane system already stacks N panes (RSI proves it); generalize pane *producers*. | M | MACD = histogram + 2 lines in one pane. |
-| **Custom indicator registry** | `HabChart.registerIndicator('myInd', { type:'overlay'\|'pane', compute(bars, params), defaults })` then use `indicators="myInd:14"`. | M | The ecosystem unlock — everything after this is community-extensible. |
-| Per-indicator styling | `indicators="sma:20@#f0b429"` syntax + `--wick-*` vars. | S | |
-| Indicator settings UX in demo | Chips get a popover (period/color). | S | |
-
-## Track 3 — Trading usefulness (the "more useful than TradingView" layer)
-
-| Feature | What & why | Effort | Notes |
-|---|---|---|---|
-| **Positions & orders visualization** | `chart.addPosition({ entry, stop, target, qty })` → entry/stop/target zone with live P&L readout against streaming price. TradingView gates this behind Pro. | M | Highest-impact single feature for traders. |
-| Price alerts | `addAlert({ price, direction })` → line + `hab:alert` event on cross; optional browser Notification. | S–M | Checked inside `update()`. |
-| Measure tool | Shift-drag A→B: Δprice, ±%, Δtime, bar count overlay. | S–M | |
-| **Stats panel** | Visible-range analytics: return %, annualized vol, max drawdown, up/down bars, avg volume. | S | Pure functions over visible slice; huge "useful" per line of code. |
-| ~~Replay mode~~ ✅ shipped (plugin) | `wickchart-replay` — `replay.start/step/seek/play/pause/stop` + speed & loop; hides the future via the public data API (setData slice + update), badge layer shows the position. ~~Paper trading + equity curve = 0.2 follow-up~~ ✅ shipped as the `wickchart-paper` plugin (next-bar-open market fills, gap-aware limits, netting/flips with averaged entries, fees, docked equity curve with max drawdown, position mirrored onto the core positions API). | S–M | Renderer is data-driven; slice + reuse auto-follow. |
-| Candle countdown | Time remaining in the current bar (legend pill). | S | 1 s timer, no re-render cost (HTML overlay). |
-| Shareable chart state | `getState()/setState()`; demo maps to URL hash (`#BTC-1h-sma20-rsi`). | S | Stickiness + marketing. |
-
-## Track 4 — Inventions & differentiators (things TradingView doesn't do)
-
-| Idea | What & why | Effort |
-|---|---|---|
-| ~~**Volume profile**~~ ✅ shipped | Side histogram with POC/VAH/VAL over the visible range. Classic pro tool, rarely free. | M–L |
-| ~~**Declarative `<hab-feed>` element**~~ ✅ shipped | `<hab-feed binance="BTCUSDT" tf="1h"></hab-feed><hab-chart>` — a fully live chart with **zero JavaScript written**. The ultimate "modern, simpler" demo. | M |
-| ~~**Smart annotations**~~ ✅ shipped | Auto-badge volume spikes, RSI divergences, gaps, N-bar highs/lows; hover for a one-line insight. "Explain mode" for charts. | M |
-| ~~Server-side overlays~~ ✅ shipped | `setOverlays()` + JSON attribute for API-computed supply/demand zones & price levels — zones extend into future space like TradingView drawings. | S–M |
-| ~~Scenario ghosts + vol cone~~ ✅ shipped | `setScenario({ path, cone })` — hypothetical ghost paths plus ±1σ/±2σ bands widening with √h from realized vol, projected into reserved future space. | M |
-| ~~Risk planner (R-multiple grid)~~ ✅ shipped | `setRiskPlan({ entry, stop, multiples \| targets })` — entry/stop define 1R; dashed kR reward lines + shaded risk/reward zones with labeled pills. Position sizing reads straight off the chart. | S–M |
-| ~~Co-view presence~~ ✅ shipped | Peer viewports as colored bands + names on the chart, `getPeers()` / `wick:peers`, TTL sweep via `PresenceTracker` — extends the BroadcastChannel co-view protocol without shipping network code. | S–M |
-| ~~Bar-walk narrator~~ ✅ shipped | `narrate()` timeline (pivots, spikes, gaps, divergences + derived legs) and `walk()` — a viewport replay with `wick:walk` captions; any user input interrupts. `narrateWindow` in core. | S–M |
-| ~~Delta brush~~ ✅ shipped | `<wick-chart brush>` — plain drag selects bars with a live Δ% band + chip; `wick:brush` carries range stats (delta, extremes, Σvol). `brushStats` in core. | S |
-| ~~Story mode~~ ✅ shipped | Scenes of chart state (view, type, indicators, overlays, scenario, risk plan) played as a narrated tour with eased camera pans — `captureScene()` / `playStory()` / `wick:story`. Plain-data scenes, shareable. | M |
-| ~~Volatility-regime shading~~ ✅ shipped | Background tint by realized-vol percentile — market state at a glance. `<hab-chart volshading="30/70">`, legend shows hovered regime + percentile. | S–M |
-| ~~**HabScript mini-language**~~ ✅ shipped | `indicators="expr:{close - sma(close,20)}"` / `pexpr:{…}` — hand-written tokenizer + recursive-descent parser (no `eval`) over builtins, URL-safe, live demo input. | L |
-| ~~Cross-tab co-view~~ ✅ shipped | BroadcastChannel syncs crosshair/markings between two open tabs. Great demo flex, tiny code. | S–M |
-| ~~Sonification toggle~~ ✅ shipped | Pitch maps to price movement — screen-reader traders get trend by ear. Rare a11y win. | S–M |
-| ~~AI-ready data hook~~ ✅ shipped | `chart.getDataWindow()` — structured + markdown summary of the visible window (trend, vol percentile, patterns); demo "Explain" button with copy-to-clipboard. Data stays local. | S |
-| ~~Branded snapshot/report export~~ ✅ shipped | `wickchart/report` — `exportReport(chart, opts)` / `downloadReport()`: header (title, range, brand) + the DPR-crisp chart with a corner watermark + a visible-range stats grid (the same computeStats the panel uses) + a credited footer; themed from the chart's own `--wick-*` variables; pure `reportModel()` exported. Zero core changes. | M |
-| Spread & ratio charts (pane) | ~~`formula="BTC/ETH"` live derived series~~ derived ratio/diff lines shipped in `wickchart-compare` (rebased, raw value in the legend); ~~a dedicated spread *pane* with its own axis stays open — needs core pane support~~ ✅ shipped (2.1): `chart.setSeries(name, bars)` registers a second symbol and WickScript reads it as `name_close`/`name_high`/… (time-aligned, NaN in gaps) — `pexpr:{close - eth_close}` is a spread pane with its own autoscaled axis. wickchart-compare can feed `setSeries` to upgrade its rebased lines into true panes (the plugin's call). | M |
-
-## Track 5 — Engineering & scale (continuous)
-
-- ~~**Tests**: unit tests for pure functions (indicators, ticks, scales),
-  Playwright visual-regression diffs, and a **perf-budget CI gate** (fail if
-  default-view render > 1 ms)~~ ✅ shipped — 664 unit tests, the Playwright
-  suite with runtime canvas-diff assertions, and the perf gate as
-  `e2e/perf.spec.mjs` (2026-10): full renders timed in a real browser on a
-  50k-bar history, median of batched samples, failing the CI browser job over
-  1 ms default view / 8 ms max zoom-out.
-- ~~**Incremental indicators**~~ ✅ shipped (PR #65) — streamed ticks (append / forming-bar replace) patch every online-capable series by recomputing a bounded tail with the *same* batch definition (O(warm-up) ≈ 0.1 ms per indicator, not O(full history)), writing only the last `period` values so history keeps its exact full-compute values; seeds come from the sync or the worker compute, so the forming bar stays fresh on 1M-bar worker charts too. `obv`/`vwap` (cumulative) and `supertrend` (stateful) are excluded by construction.
-- **Columnar typed-array store** internally (accept objects, convert once). *M* — **deferred on measurement** (2.1, see `docs/decisions/2.1.0-polish-track.md` D6): render is O(pixel columns) and flat in store size (4.8 ms default view at 1M bars), the scan it would optimize costs 10.5 ms/M bars and only at full zoom, and the heavy compute already runs columnar in the worker. Reopen on profiler evidence (≥5M bars or sub-16 ms low-end budgets).
-- ~~**Min/max downsampling** per pixel column for extreme zoom-outs~~ ✅ shipped (2.1) — candles had it since the deep-zoom aggregation (high/low min-max per pixel column); 2.1 closed the line/area gap: columns also track close extremes (`cMin`/`cMax`), both join the polyline (nearest-to-previous first), and the line-mode autoscale scan uses them — a one-bar spike inside a column survives.
-- ~~Offscreen hover layer (crosshair-only repaint)~~ ✅ shipped (2.1) — the crosshair lives on its own transparent canvas stacked over the main one; a pointer crossing the chart repaints only that layer (browser-measured: 0 full renders across 20 hover calls) and full frames refresh it last so live ticks keep it honest. `exportPNG` composites both layers.
-- ~~Web Worker compute path for 1M+ bars~~ ✅ shipped (PR #64) — `import 'wickchart/worker'` + `<wick-chart worker>`: built-in indicators compute in a module Worker, the dataset crossing once per bulk load as transferable Float64Arrays (~25 ms/M bars — object clones measured at ~1 s and disqualified); results cached per data epoch so streamed ticks stop recomputing; builtin-only (closures can't cross), 50k+ bars, silent sync fallback. Main entry +1.66 KB (budget 72→74). Rust/WASM stays a non-goal (canvas, not JS, is the floor).
-- Packaging: ~~JSDoc types → `.d.ts`, npm publish + CDN links~~ ✅, ~~`useWickChart`
-  React hook + Vue/Svelte examples~~ ✅ shipped as `wickchart/react` (+ live
-  `demo/react.html`); ~~semver/changelog policy~~ ✅ CHANGELOG.md (policy +
-per-release entries; releases cut as tagged GitHub Releases). *S–M*
-- ~~i18n for built-in labels; `preset="minimal|pro"` attribute~~ ✅ shipped (2.1) — string packs (`lang`, en/de built in, `WickChart.registerStrings()` for hosts; numbers/dates already viewer-locale via Intl) and `preset="minimal|pro"` as a chrome starting point that explicit attributes override.
-
-### Explicit non-goals
-
-Drawing tools inside the core (they live in the opt-in `wickchart-draw`
-plugin — trendline/ray/level/rect/fib/text shipped on the layer API; the
-core stays drawing-free), any backend/social layer, an indicator
-marketplace (before the registry proves itself), and a WebGL renderer (the
-Canvas 2D floor is ~1 ms at our scale — revisit only with profiler evidence).
+Effort: **S** ≤ a day · **M** a few days · **L** a week+. Spans 2.4 → 3.0
+(3.0 is the hygiene cut at the end, not a rewrite).
 
 ---
 
-## Recommended next five PRs (value ÷ effort)
+## Track 1 — Chart intelligence (the feature summit)
 
-1. ~~**`loadMore` backfill + gap dividers**~~ ✅ shipped
-2. ~~**Indicator registry + Bollinger + MACD**~~ ✅ shipped
-3. ~~**Positions/orders + alerts**~~ ✅ shipped
-4. ~~**Stats panel + measure tool**~~ ✅ shipped
-5. ~~**`getState()/setState()` + URL sharing**~~ ✅ shipped
+| Feature | What & why | Effort | Notes |
+|---|---|---|---|
+| **Shape & pattern search** | Brush any region → find every similar occurrence in history, ranked by z-normalized distance, ghosted onto the chart with a matches list (`chart.findShape()`, `wick:shape`). Matrix-profile-class similarity search shipped inside a web chart — nobody has it. | L | Sliding dot-product via a hand-rolled FFT in the worker (the compute path already exists); z-normalized Euclidean; greedy exclusion so overlapping matches collapse. Subsequence length bounded to keep it interactive. |
+| **AI chart copilot** | Natural language → validated chart operations through the existing agent registry: "add a 21 EMA and show me where RSI diverged", "set up a long risk plan around the last pivot". Chart state → natural language. | M–L | The moat already exists: `wickchart-ai`'s validated dispatcher (`set_indicators` etc.) — no eval, URL-safe tokens. Deterministic rule-based intent core; an LLM is a pluggable accelerator, never a dependency. |
+| Briefing mode | One command synthesizes signals + smart annotations + visible-range stats + the narrate timeline into a structured markdown briefing. "Explain this chart" as a first-class artifact. | S–M | Pure composition of existing parts (`getDataWindow`, signals plugin, narrator analyzer). |
 
-**Next up (suggested):** nothing is queued — 2.3.0 (named themes +
-wickchart-animate) is out, and the perf-budget CI gate (the last open
-Track-5 line) shipped as `e2e/perf.spec.mjs`. What's left on purpose: the
-deferred columnar store (reopen on profiler evidence,
-`docs/decisions/2.1.0-polish-track.md` D6) and whatever demand surfaces
-next. The 2.0 plan is fully delivered (ROADMAP-V2.md is historical).
+## Track 2 — Chart as an artifact (sharing, the zero-dep flex)
 
-Each PR lands with the perf gate green (<1 ms default view, <8 ms max
-zoom-out) — enforced in CI by `e2e/perf.spec.mjs`, not just promised here.
+| Feature | What & why | Effort | Notes |
+|---|---|---|---|
+| **Single-file export** | `exportChart({ standalone: true })` → one self-contained `.html`: the module inlined, the state JSON, optional story/scenario, opens offline. Send a *chart*, not a screenshot. | M | Only possible because the whole library is one zero-dependency module — the constraint pays off. Same machinery exports narrated stories as playable files. |
+| Open a shared chart | Drag a shared file onto any page with the element → state restores (or self-opens standalone). | S | The inverse of export; makes the artifact round-trip. |
+| SVG snapshot | The same draw model emitted as vector SVG — print/docs quality, tiny files. | S–M | The interesting engineering: a thin command-recorder between the draw calls and the canvas context, with an SVG emitter behind it. `exportPNG`/report reuse it. |
+| P2P co-view (stretch) | Today's co-view syncs *tabs* (BroadcastChannel). WebRTC data channels with copy-paste signaling sync *people* — shared cursors and drawings, still zero backend. | M–L | Deliberately last in the track: signaling without a server is clunky to demo solo; lands only if the rest of the track clears early. |
+
+## Track 3 — Provable correctness & scale (the engineering summit)
+
+| Feature | What & why | Effort | Notes |
+|---|---|---|---|
+| **Golden-vector correctness** | Every built-in indicator checked against reference vectors — hand-derived fixtures cross-checked against TA-Lib runs, recorded as JSON, run as differential tests; the pass/fail matrix published in docs. "Trust the math" becomes checkable, not claimed. | M | The matrix page is the artifact a reviewer actually looks at. Worker path inherits the fixtures for free (same compute kernels). |
+| **Fuzz + deterministic replay** | Property-based fuzzing of bars/attrs/gestures (CDP-driven input events), seeds recorded, any failure replayable byte-exact. | M | Extends the existing e2e harness; the size and perf gates get a correctness sibling. |
+| **Columnar typed-array store** | The deferred D6 decision, reopened *by choice* as an engineering showcase: SoA `Float64` columns as the internal store, typed-column ingestion (`setData({ columns })`, additive), a compact binary wire format for histories. Target: 5M-bar histories, flat default view, memory density documented. | L | D6's reopen trigger was "≥5M bars or sub-16 ms low-end budgets" — a deliberate reopen for the craft signal, with a spike + decision doc before the full commitment. Render stays O(pixel columns); the wins are memory, scan and ingest. |
+| OffscreenCanvas render thread | Opt-in: painting in a worker so the main thread stays free for host-app work. | M–L | Transfer canvas control off the main thread; Safari fallback; the hover layer stays local to input. |
+
+## Track 4 — Hygiene, access, 3.0
+
+| Feature | What & why | Effort | Notes |
+|---|---|---|---|
+| A11y traversal | Full keyboard chart navigation — arrow through bars with spoken/ARIA readouts, roles on the HUD, sonify 2.0 interval earcons. Screen-reader traders get a chart, not a picture of one. | M | Sonification exists; this finishes the job. Rare even among commercial charts. |
+| **3.0 cut** | Delete the 2.0 warn-once stubs (promised "in 3.0"), prune surface that 2.x taught us better, tighten types. | S–M | Additive-first: 3.0 earns its number, it doesn't factory-reset the API. |
+
+---
+
+### Non-goals (identity, not reluctance)
+
+A WebGL/WebGPU renderer (the Canvas 2D + columnar-dowsampling floor already
+beats the frame budget — revisit only with profiler evidence), Rust/WASM
+(no toolchain, no binary blobs), any backend server (P2P and
+BroadcastChannel only), dependencies of any kind, a build step.
+
+---
+
+## Recommended first five PRs (value ÷ effort, portfolio-optic)
+
+1. **Golden-vector correctness harness** + the trend/oscillator set — the
+   rigor artifact lands first and everything after cites it. *M*
+2. **Shape & pattern search** — the flagship feature; built on tested
+   ground. *L*
+3. **Single-file export + open** — the zero-dep flex nobody else can copy. *M*
+4. **Briefing mode** — cheap, composes existing parts into a visible wow. *S–M*
+5. **Fuzz + deterministic replay harness** — the third CI gate. *M*
+
+The columnar store follows as PR six, gated on its spike + decision doc.
+
+Each PR lands with the size and perf gates green — both enforced in CI now,
+not promised.
