@@ -28,6 +28,7 @@ const { meta, inputs, cases } = JSON.parse(
 // kernels); the closes are extracted here.
 const CLOSE_BASED = new Set([
   'calcSMA', 'calcEMA', 'calcWMA', 'calcStdDev', 'calcRSI', 'calcBollinger', 'calcMACD',
+  'calcRealizedVol',
 ]);
 
 const resolveInput = (c) => {
@@ -104,12 +105,29 @@ for (const c of cases) {
 }
 
 test('golden: summary', () => {
-  assert.ok(cases.length >= 25, 'the fixture set shrank unexpectedly');
+  // Coverage is derived from the module's own exports, not counted: every
+  // exported calc* kernel must have at least one fixture, and every fixture
+  // fn must be a real exported kernel. A swapped-out kernel or a duplicate
+  // case can no longer hide behind the case count.
+  const exported = new Set(
+    Object.keys(core).filter((k) => /^calc[A-Z]/.test(k) && typeof core[k] === 'function')
+  );
+  const covered = new Set(cases.map((c) => c.fn));
+  const missing = [...exported].filter((k) => !covered.has(k));
+  const unknown = [...covered].filter((k) => !exported.has(k));
+  assert.deepEqual(unknown, [], 'fixtures reference kernels core.js does not export');
+  assert.deepEqual(
+    missing,
+    [],
+    'exported kernels without golden vectors — add a reference in tests/golden/generate.py, ' +
+      'regenerate, and extend CLOSE_BASED if it takes plain values'
+  );
+
   const top = drifts.slice().sort((a, b) => b.ratio - a.ratio).slice(0, 3);
   const used = top.length ? top[0].ratio : 0;
   console.log(
-    `golden: ${cases.length} cases vs ${meta.generated} fixtures — ` +
-      `worst tolerance use ${(used * 100).toFixed(4)}% of limit` +
+    `golden: ${cases.length} cases, ${exported.size}/${exported.size} kernels covered, ` +
+      `vs ${meta.generated} fixtures — worst tolerance use ${(used * 100).toFixed(4)}% of limit` +
       (top.length ? ` (${top.map((d) => `${d.id} ${d.ratio.toExponential(1)}`).join(', ')})` : '')
   );
   assert.ok(used < 0.5, `drift crept above half the tolerance — investigate before it fails`);

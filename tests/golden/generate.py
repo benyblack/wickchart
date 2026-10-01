@@ -364,6 +364,15 @@ def ref_supertrend(bars, period, mult):
     return nulls(out)
 
 
+def ref_realizedvol(closes, period):
+    """Rolling population stdev of log returns; a window counts only when it
+    holds exactly `period` finite returns (non-positive closes yield NaN)."""
+    c = pd.Series(closes, dtype="float64")
+    r = np.log(c / c.shift(1))
+    r.iloc[0] = np.nan
+    return nulls(r.rolling(period, min_periods=period).std(ddof=0))
+
+
 def ref_heikinashi(bars):
     out = []
     po = pc = None
@@ -406,14 +415,24 @@ def crosscheck():
 
     def add(name, mine_themers, klass):
         """mine_themers: () -> (mine, theirs); isolated so one ta API
-        mismatch degrades to UNAVAILABLE instead of aborting generation."""
+        mismatch degrades to UNAVAILABLE instead of aborting generation.
+        An EXACT-class numeric disagreement over 1e-9 is NOT an API
+        mismatch — it fails generation loudly, so a faulty reference can
+        never silently overwrite the committed fixtures."""
         try:
             mine, theirs = mine_themers()
             m = np.asarray(mine, float)
             t = np.asarray(theirs, float)
             dev = rel(m[tail], t[tail]) if klass != "EXACT" else rel(m, t)
+            if klass.startswith("EXACT") and dev > 1e-9:
+                raise RuntimeError(
+                    f"cross-check {name}: {klass} but deviation {dev:.3e} > 1e-9 "
+                    "— the reference and ta disagree; fix the reference "
+                    "before regenerating fixtures")
             rows.append({"indicator": name, "class": klass, "max_rel_dev": dev})
-        except Exception as e:  # noqa: BLE001 — reported, never fatal
+        except RuntimeError:
+            raise
+        except Exception as e:  # noqa: BLE001 — API mismatch, reported not fatal
             rows.append({"indicator": name, "class": "UNAVAILABLE",
                          "max_rel_dev": None, "why": f"{type(e).__name__}: {e}"})
 
@@ -497,6 +516,9 @@ def main():
          {"values": ref_wma([b["close"] for b in w150], 20)}),
         ("stddev20", "calcStdDev", "walk150", [20], "population stdev, aligned like SMA",
          {"values": ref_stddev([b["close"] for b in w150], 20)}),
+        ("rvol20", "calcRealizedVol", "walk150", [20],
+         "rolling population stdev of log returns; first output at index p",
+         {"values": ref_realizedvol([b["close"] for b in w150], 20)}),
         ("rsi14", "calcRSI", "walk150", [14],
          "Wilder; seed = simple mean of first p changes, first output at p",
          {"values": ref_rsi([b["close"] for b in w150], 14)}),
@@ -665,6 +687,7 @@ def write_docs(fixtures, xc):
     a("| kernel | warm-up / convention |")
     a("|---|---|")
     a("| `calcSMA` / `calcWMA` / `calcStdDev` | first output at index p−1 |")
+    a("| `calcRealizedVol` | population stdev of log returns; a window needs exactly p finite returns; first output at index p |")
     a("| `calcEMA` / `calcEMASparse` | k = 2/(p+1); seed = SMA of the first p values |")
     a("| `calcRSI` | Wilder; seed = simple mean of the first p changes; first output at index p |")
     a("| `calcATR` | Wilder RMA over true range; seed = SMA of the first p TRs; first bar TR = h−l |")

@@ -48,6 +48,7 @@ deterministic seed), `tiny10`, and `macdline150` (leading-nulls input).
 | `calcEMASparse` | values | [9] | 117 |
 | `calcWMA` | values | [20] | 131 |
 | `calcStdDev` | values | [20] | 131 |
+| `calcRealizedVol` | values | [20] | 130 |
 | `calcRSI` | values | [14] | 136 |
 | `calcMACD` | macd | [12, 26, 9] | 125 |
 | `calcMACD` | signal | [12, 26, 9] | 117 |
@@ -106,6 +107,7 @@ carry no row: layer 1 + layer 3 are their cover.
 | kernel | warm-up / convention |
 |---|---|
 | `calcSMA` / `calcWMA` / `calcStdDev` | first output at index p−1 |
+| `calcRealizedVol` | population stdev of log returns; a window needs exactly p finite returns; first output at index p |
 | `calcEMA` / `calcEMASparse` | k = 2/(p+1); seed = SMA of the first p values |
 | `calcRSI` | Wilder; seed = simple mean of the first p changes; first output at index p |
 | `calcATR` | Wilder RMA over true range; seed = SMA of the first p TRs; first bar TR = h−l |
