@@ -48,7 +48,13 @@ import { gzipSync } from 'node:zlib';
 // palette (any theme without page-level CSS variables — including the
 // built-in light, whose legend was near-invisible before) into the
 // legend/HUD/focus ring costs ~0.36 KB. Landed at 67.2 KB.
-const BUDGET_GZ = 68 * 1024; // 68 KB gzipped for the whole main entry
+//
+// 68→71 KB: shape search (ROADMAP v3, Track 1 flagship). The math —
+// shapeSearch's MASS-style z-normalized FFT search with greedy
+// non-overlapping exclusion — is ~1.9 KB in core; the chart surface
+// (findShape/clearShape/shapeResult, the wick:shape payload, query/match
+// band rendering) adds ~1.2 KB. Landed at 70.3 KB.
+const BUDGET_GZ = 71 * 1024; // 71 KB gzipped for the whole main entry
 const FILES = ['src/core.js', 'src/wick-chart.js'];
 
 // the drawing toolkit is opt-in bytes; it earns its own, smaller budget
