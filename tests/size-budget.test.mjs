@@ -137,6 +137,14 @@ const AI_FILES = ['plugins/ai/core.mjs', 'plugins/ai/ai.mjs'];
 const ANIMATE_BUDGET_GZ = 4 * 1024;
 const ANIMATE_FILES = ['plugins/animate/animate.mjs'];
 
+// standalone: the single-file export — module flattening (import/export
+// statement surgery so core + element share one module scope), the payload
+// (state + compact bar arrays + custom-theme palette), the HTML builder
+// with its <script> escaping, and the open/adopt/drop half of the
+// round-trip. Landed at 5.6 KB gz.
+const STANDALONE_BUDGET_GZ = 7 * 1024;
+const STANDALONE_FILES = ['src/standalone.js'];
+
 // The gzip budgets measure canonical content: CRLF is a checkout artifact
 // (core.autocrlf on Windows), not bytes anyone ships — the registry and CI
 // both normalize to LF, so the test does too before measuring.
@@ -378,6 +386,20 @@ test('wickchart-animate plugin stays under its (smaller) gzip budget', () => {
   }
   assert.ok(
     total <= ANIMATE_BUDGET_GZ,
-    `wickchart-animate is ${(total / 1024).toFixed(1)} KB gz, budget is ${ANIMATE_BUDGET_GZ / 1024} KB\n  ${parts.join('\n  ')}`
+    `wickchart-animate is ${(total / 1024).toFixed(1)} KB gz, budget is ${ANIMATE_BUDGET_GZ / 1024} KB gz\n  ${parts.join('\n  ')}`
+  );
+});
+
+test('wickchart/standalone entry stays under its gzip budget', () => {
+  let total = 0;
+  const parts = [];
+  for (const f of STANDALONE_FILES) {
+    const n = gz(f);
+    total += n;
+    parts.push(`${f}: ${(n / 1024).toFixed(1)} KB gz`);
+  }
+  assert.ok(
+    total <= STANDALONE_BUDGET_GZ,
+    `wickchart/standalone is ${(total / 1024).toFixed(1)} KB gz, budget is ${STANDALONE_BUDGET_GZ / 1024} KB gz\n  ${parts.join('\n  ')}`
   );
 });

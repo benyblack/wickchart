@@ -147,6 +147,42 @@ own layout.
 
 ---
 
+## Standalone export (send a chart, not a screenshot)
+
+`exportChart()` produces one self-contained `.html` — the whole module
+inlined (core + the element flattened into a single module script), the
+state snapshot and the data as compact bar arrays. The file opens offline,
+from a file manager or an email attachment, with zero requests — only a
+zero-dependency, no-build module can do this, because there is nothing
+else to inline:
+
+```js
+import { exportChart, downloadChart, adoptShared, attachDrop } from 'wickchart/standalone';
+
+const html = await exportChart(chart);        // one self-contained .html string
+await downloadChart(chart, 'btc-1h.html');    // …as a file download
+await adoptShared(chart, file);               // restore a shared file into a chart
+attachDrop(chart);                            // drag one anywhere on the page → restores
+```
+
+What travels: series type, theme (a registered custom theme's palette is
+embedded and re-registered on open), indicators, the view range, positions
+and alerts, and the bars themselves (`maxBars` caps the history for
+smaller files). The inverse is the same module: `openShared(file)` reads
+the payload back out, `adoptShared()` applies it to a live chart, and
+`attachDrop(chart)` wires the drag-and-drop — drop an exported file onto
+any page with the element and the state restores.
+
+Two practical notes: the export fetches the original `core.js` /
+`wick-chart.js` (script-tag, ESM or CDN usage works; bundlers should pass
+`coreSource`/`chartSource` strings), and `pluginSources` + `init` append
+already-flattenable plugin module sources through the same machinery —
+narrated stories export as playable files this way. The flattening is
+pinned by tests against the real sources, so a source edit that breaks
+inlining fails CI rather than someone's shared chart.
+
+---
+
 ## Why another chart library?
 
 TradingView's charting library is powerful but heavy and enterprise-licensed;

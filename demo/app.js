@@ -13,6 +13,7 @@ import { attachTape } from '../plugins/tape/tape.mjs';
 import { attachNarrator } from '../plugins/narrator/narrator.mjs';
 import { attachScenario } from '../plugins/scenario/scenario.mjs';
 import { attachAI } from '../plugins/ai/ai.mjs';
+import { downloadChart, attachDrop } from '../src/standalone.js';
 import {
   genSynthetic,
   makeSynthStream,
@@ -543,6 +544,25 @@ document.getElementById('btn-shape').addEventListener('click', (e) => {
       (best ? ` — best score ${best.score.toFixed(2)}` : '') +
       '. Bands show the query (green) and its matches; press again to clear.'
   );
+});
+
+/* ---------------- standalone share (one self-contained offline .html) ---------------- */
+
+document.getElementById('btn-share').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  try {
+    await downloadChart(chart, 'wickchart.html', { source: 'wickchart demo' });
+    toast('wickchart.html downloaded — it opens offline, and dragging it back onto this page restores it.');
+  } catch (err) {
+    toast('Export failed: ' + err.message);
+  }
+  btn.disabled = false;
+});
+
+attachDrop(chart, {
+  onadopt: (p) => toast(`Restored “${p.label || 'shared chart'}” — ${p.bars.length} bars, view included.`),
+  onerror: () => toast('That file is not a shared WickChart export.'),
 });
 
 document.getElementById('btn-coview').addEventListener('click', (e) => {
