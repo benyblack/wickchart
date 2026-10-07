@@ -1,0 +1,42 @@
+{
+  "name": "wickchart-briefing",
+  "version": "0.1.0",
+  "description": "One command that explains the chart — the visible window synthesized into a structured markdown briefing: tape summary (trend, volatility regime, notable events), candlestick signal census, smart annotations and the narrate timeline. Pure composition of wickchart's core analyzers, wickchart-signals and wickchart-narrator; computed locally, nothing leaves the page.",
+  "type": "module",
+  "main": "briefing.mjs",
+  "module": "briefing.mjs",
+  "exports": {
+    ".": "./briefing.mjs",
+    "./core": "./core.mjs"
+  },
+  "files": [
+    "briefing.mjs",
+    "core.mjs",
+    "README.md"
+  ],
+  "keywords": [
+    "chart",
+    "charting",
+    "briefing",
+    "summary",
+    "markdown",
+    "signals",
+    "annotations",
+    "narrator",
+    "trading",
+    "wickchart"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "wickchart-signals": "^0.1.0",
+    "wickchart-narrator": "^0.1.0"
+  },
+  "peerDependencies": {
+    "wickchart": ">=1.4.0"
+  },
+  "peerDependenciesMeta": {
+    "wickchart": {
+      "optional": true
+    }
+  }
+}

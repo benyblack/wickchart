@@ -14,6 +14,7 @@ import { attachNarrator } from '../plugins/narrator/narrator.mjs';
 import { attachScenario } from '../plugins/scenario/scenario.mjs';
 import { attachAI } from '../plugins/ai/ai.mjs';
 import { downloadChart, attachDrop } from '../src/standalone.js';
+import { attachBriefing } from '../plugins/briefing/briefing.mjs';
 import {
   genSynthetic,
   makeSynthStream,
@@ -500,23 +501,45 @@ document.getElementById('btn-play').addEventListener('click', () => {
   document.getElementById('chart').playRange();
 });
 
-/* ---------------- AI-ready summary (local, no network) ---------------- */
+/* ---------------- chart summary & briefing (local, no network) ---------------- */
 
 const explainPanel = document.getElementById('explain-panel');
 const explainText = document.getElementById('explain-text');
+const explainHint = document.getElementById('explain-hint');
+attachBriefing(chart);
+let explainMode = 'summary';
+
+const renderExplain = () => {
+  if (explainMode === 'briefing') {
+    const b = chart.briefing();
+    explainText.textContent = b ? b.markdown : 'No data — load a chart first.';
+    explainHint.textContent = 'The visible window as one document — tape, signals, annotations and the timeline (wickchart-briefing).';
+  } else {
+    const s = chart.getDataWindow();
+    explainText.textContent = s ? s.text : 'No data — load a chart first.';
+    explainHint.textContent = 'Paste into any AI chat and ask: “explain this chart and the main risks & setup”.';
+  }
+};
 
 document.getElementById('btn-explain').addEventListener('click', () => {
-  const s = chart.getDataWindow();
-  explainText.textContent = s ? s.text : 'No data — load a chart first.';
   explainPanel.hidden = false;
+  renderExplain();
 });
+for (const [id, mode] of [['explain-tab-summary', 'summary'], ['explain-tab-briefing', 'briefing']]) {
+  document.getElementById(id).addEventListener('click', () => {
+    explainMode = mode;
+    document.getElementById('explain-tab-summary').setAttribute('aria-pressed', String(mode === 'summary'));
+    document.getElementById('explain-tab-briefing').setAttribute('aria-pressed', String(mode === 'briefing'));
+    renderExplain();
+  });
+}
 document.getElementById('explain-close').addEventListener('click', () => {
   explainPanel.hidden = true;
 });
 document.getElementById('explain-copy').addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText(explainText.textContent);
-    toast('Summary copied — paste it into any AI chat.');
+    toast(explainMode === 'briefing' ? 'Briefing copied — the whole window as markdown.' : 'Summary copied — paste it into any AI chat.');
   } catch (err) {
     toast('Copy blocked — select the text and copy manually.');
   }

@@ -9,11 +9,16 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='1' y='1' width='22' height='22' rx='6' fill='%236366f1'/%3E%3Crect x='6' y='9' width='3.4' height='7' rx='1' fill='white'/%3E%3Crect x='14.5' y='7' width='3.4' height='5' rx='1' fill='white' opacity='.6'/%3E%3C/svg%3E" />
-  <!-- the narrator package imports its analyzer from wickchart/core; this
-       maps the bare specifier for the in-repo playgrounds (npm/bundler users
-       get it from node_modules instead) -->
+  <!-- the narrator and briefing packages import their analyzers from
+       wickchart/core (and each other) via bare specifiers; this maps them
+       for the in-repo playgrounds (npm/bundler users get them from
+       node_modules instead) -->
   <script type="importmap">
-    { "imports": { "wickchart/core": "./src/core.js" } }
+    { "imports": {
+      "wickchart/core": "./src/core.js",
+      "wickchart-signals/core": "./plugins/signals/core.mjs",
+      "wickchart-narrator/core": "./plugins/narrator/core.mjs"
+    } }
   </script>
   <script type="module" src="./src/wick-feed.js"></script>
   <style>
@@ -204,13 +209,14 @@
         <li><a href="#coview">coview — co-viewing<span class="pkg">coview</span></a></li>
         <li><a href="#scenario">scenario — planning<span class="pkg">scenario</span></a></li>
         <li><a href="#ai">ai — agent surface<span class="pkg">ai</span></a></li>
+        <li><a href="#briefing">briefing — explain the chart<span class="pkg">briefing</span></a></li>
       </ul>
     </aside>
 
     <main>
       <section id="start">
-        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">16 packages</span></h2>
-        <p>Everything here is an <b>opt-in package</b>, not core bytes: each plugin is a separate npm package, zero dependencies, built only on wickchart's public <a href="./docs.html#plugins">layer API</a> and kept small by its own CI gzip budget. The core chart stays lean — you pay bytes only for what you attach, and everything detaches cleanly.</p>
+        <h2>The plugin family <a class="anchor" href="#start">#</a> <span class="pill new">17 packages</span></h2>
+        <p>Everything here is an <b>opt-in package</b>, not core bytes: each plugin is a separate npm package, built only on wickchart's public <a href="./docs.html#plugins">layer API</a> and kept small by its own CI gzip budget — zero dependencies, except <a href="#briefing">briefing</a>, which deliberately composes two of its siblings. The core chart stays lean — you pay bytes only for what you attach, and everything detaches cleanly.</p>
         <p>Every plugin follows the same shape: <code>attach</code> → configure → <code>detach</code>. Install any of them next to the chart:</p>
         <div class="codewrap"><pre class="code"><span class="tag">npm</span> install wickchart wickchart-sessions   <span class="cmt">// …or wickchart-draw, wickchart-tape, …</span>
 
@@ -234,6 +240,7 @@
           <tr><td><a href="#coview">wickchart-coview</a></td><td>cross-tab co-viewing — presence bands, shared crosshair, open protocol</td><td>5.0 KB</td><td>≥ 1.4</td></tr>
           <tr><td><a href="#scenario">wickchart-scenario</a></td><td>planning — σ-cone projections, ghost paths, R-multiple risk plans</td><td>2.1 KB</td><td>≥ 1.4</td></tr>
           <tr><td><a href="#ai">wickchart-ai</a></td><td>the chart as an LLM tool surface — manifest, prompt, validated ops</td><td>2.2 KB</td><td>≥ 1.4</td></tr>
+          <tr><td><a href="#briefing">wickchart-briefing</a></td><td>one command that explains the chart — the window as a markdown briefing</td><td>3.4 KB</td><td>≥ 1.4</td></tr>
         </table>
         <div class="note"><b>Dock note:</b> the navigator and the tape both dock through the 1.6 <code>insetBottom</code> hook and share the single strip at the bottom of the canvas — attach one or the other. Every playground below is live: click around.</div>
       </section>
@@ -653,6 +660,26 @@ ai.<span class="attr">detach</span>();</pre></div>
         </div>
         <div class="note">Peer: <b>wickchart ≥ 1.4</b>, imports the manifest/prompt/dispatcher from <code>wickchart/core</code> (CDN users: import map). Part of the <a href="https://github.com/benyblack/wickchart/blob/main/ROADMAP-V2.md">2.0 plan</a>.</div>
       </section>
+
+      <section id="briefing">
+        <h2>wickchart-briefing <a class="anchor" href="#briefing">#</a> <span class="size">3.4 KB gz</span> <span class="pill new">NEW</span></h2>
+        <p><b>One command that explains the chart.</b> The visible window becomes a structured markdown briefing — the tape summary (trend, volatility regime, notable events), the candlestick signal census, the smart annotations and the narrate timeline — a ready-to-paste document instead of a screenshot. Pure composition: the sections <i>are</i> <code>windowSummary</code>, <code>detectSignals</code>, <code>detectAnnotations</code> and <code>narrateWindow</code>, so the briefing can never disagree with the chart it describes. Computed locally; nothing leaves the page until you copy it somewhere.</p>
+        <div class="codewrap"><pre class="code"><span class="tag">import</span> { attachBriefing } <span class="tag">from</span> <span class="str">'wickchart-briefing'</span>;
+
+<span class="attr">attachBriefing</span>(chart);
+<span class="tag">const</span> b = chart.<span class="attr">briefing</span>();     <span class="cmt">// the model — null before data lands</span>
+b.<span class="attr">markdown</span>;                     <span class="cmt">// the document (plus structured fields)</span>
+<span class="tag">await</span> chart.<span class="attr">copyBriefing</span>();   <span class="cmt">// …straight to the clipboard</span></pre></div>
+        <p>The attach installs <code>chart.briefing()</code> / <code>chart.copyBriefing()</code> on the instance (shadowing nothing; <code>detach()</code> removes them). It covers the <b>visible range</b> — pan and zoom first, the briefing follows the view — falling back to the full dataset. Output is deterministic: UTC-stable timestamps and an injectable clock, so the same window briefs byte-identically.</p>
+        <div class="note">Dependencies: <b>wickchart-signals</b> + <b>wickchart-narrator</b> — the census and the timeline are theirs, not copies (CDN users: import map). The pure model is <code>wickchart-briefing/core</code> — no chart, no DOM, usable from a worker or a backtest.</div>
+        <div class="demo-card">
+          <div class="demo-head"><span class="t">Playground</span><span class="spacer"></span><span id="br-btns"></span></div>
+          <wick-feed for="ex-br" demo="BTC" tf="1h" limit="400"></wick-feed>
+          <wick-chart id="ex-br" label="BTC · 1h" indicators="sma:20 volume"></wick-chart>
+          <pre id="br-out" style="display:none; margin:0; padding:10px 14px; font-size:11.5px; line-height:1.55; overflow:auto; max-height:260px; border-top:1px solid var(--border); background:var(--code-bg, #0b0f16); white-space:pre-wrap"></pre>
+          <div class="foot" id="br-foot">brief the visible window — pan/zoom first, the briefing follows the view</div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -672,6 +699,7 @@ ai.<span class="attr">detach</span>();</pre></div>
     import { attachCoview } from './plugins/coview/coview.mjs';
     import { attachScenario } from './plugins/scenario/scenario.mjs';
     import { attachAI } from './plugins/ai/ai.mjs';
+    import { attachBriefing } from './plugins/briefing/briefing.mjs';
 
     const $ = (id) => document.getElementById(id);
 
@@ -1304,6 +1332,36 @@ ai.<span class="attr">detach</span>();</pre></div>
         const ok = results.filter(r => r.ok).length;
         foot.textContent = ok + '/' + results.length + ' ops applied — a real model answers chart.ask() the same way';
       });
+    }
+
+    /* ---------- briefing ---------- */
+    {
+      const c = $('ex-br'), foot = $('br-foot'), out = $('br-out');
+      attachBriefing(c);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'primary';
+      btn.textContent = 'Brief this window';
+      btn.addEventListener('click', () => {
+        const m = c.briefing();
+        if (!m) { foot.textContent = 'no data yet — wait for the feed'; return; }
+        out.style.display = 'block';
+        out.textContent = m.markdown;
+        foot.textContent = `${m.window.bars} bars briefed · ${m.signals.total} signals · ${m.annotations.length} annotations · ${m.timeline.length} timeline events`;
+      });
+      $('br-btns').appendChild(btn);
+      const cp = document.createElement('button');
+      cp.type = 'button';
+      cp.textContent = 'Copy';
+      cp.addEventListener('click', async () => {
+        try {
+          const m = await c.copyBriefing();
+          foot.textContent = `briefing copied — ${m.window.bars} bars, ready to paste`;
+        } catch (e) {
+          foot.textContent = 'copy failed: ' + (e && e.message || e);
+        }
+      });
+      $('br-btns').appendChild(cp);
     }
   </script>
 </body>
