@@ -165,8 +165,19 @@ test('normalizeTrades maps aliases, upgrades seconds, drops junk, sorts by time'
 /* --------------------------- synthetic tape ------------------------------ */
 
 test('genSyntheticTrades is deterministic per key and well-formed', () => {
-  const a = genSyntheticTrades('BTC', 500, 64250);
-  const b = genSyntheticTrades('BTC', 500, 64250);
+  // The tape anchors its timestamps to a 250ms-quantized Date.now(); two
+  // calls that straddle a bucket boundary shift every time by one step.
+  // Freeze the clock so "same key → same tape" tests the key, not the luck.
+  const realNow = Date.now;
+  const frozen = realNow();
+  Date.now = () => frozen;
+  let a, b;
+  try {
+    a = genSyntheticTrades('BTC', 500, 64250);
+    b = genSyntheticTrades('BTC', 500, 64250);
+  } finally {
+    Date.now = realNow;
+  }
   assert.deepEqual(a, b, 'same key → same tape');
   assert.equal(a.length, 500);
   for (let i = 1; i < a.length; i++) {
