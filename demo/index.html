@@ -13,7 +13,13 @@
   <!-- the narrator/scenario/ai packages import their shared pure core from
        wickchart/core; this maps the bare specifier for the in-repo demo -->
   <script type="importmap">
-    { "imports": { "wickchart/core": "../src/core.js" } }
+    {
+      "imports": {
+        "wickchart/core": "../src/core.js",
+        "wickchart-signals/core": "../plugins/signals/core.mjs",
+        "wickchart-narrator/core": "../plugins/narrator/core.mjs"
+      }
+    }
   </script>
   <script type="module" src="./app.js"></script>
 </head>
@@ -330,16 +336,19 @@
 
   <main class="chart-area">
     <wick-chart id="chart" theme="dark" type="candles" indicators="volume"></wick-chart>
-    <aside class="explain-panel" id="explain-panel" hidden aria-label="AI-ready chart summary">
+    <aside class="explain-panel" id="explain-panel" hidden aria-label="Chart summary">
       <div class="explain-head">
-        <span>AI-ready summary</span>
+        <span class="seg" role="group" aria-label="Summary kind">
+          <button type="button" id="explain-tab-summary" aria-pressed="true">AI summary</button>
+          <button type="button" id="explain-tab-briefing" aria-pressed="false">Briefing</button>
+        </span>
         <span class="explain-actions">
           <button type="button" id="explain-copy">Copy</button>
           <button type="button" id="explain-close" aria-label="Close panel">✕</button>
         </span>
       </div>
       <pre id="explain-text"></pre>
-      <p class="explain-hint">Paste into any AI chat and ask: “explain this chart and the main risks &amp; setup”.</p>
+      <p class="explain-hint" id="explain-hint">Paste into any AI chat and ask: “explain this chart and the main risks &amp; setup”.</p>
     </aside>
   </main>
 

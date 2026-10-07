@@ -1097,6 +1097,34 @@ Keeps the newest 500 prints. Peer dependency: wickchart ≥ 1.6 (the dock
 hook); shares the bottom strip with wickchart-navigator, so attach one or
 the other.
 
+### Briefing — the `wickchart-briefing` plugin
+
+One command that explains the chart (~3.4 KB gz, own CI budget): the
+visible window synthesized into a structured **markdown briefing** — tape
+summary, candlestick signal census, smart annotations and the narrate
+timeline, composed into one ready-to-paste document. Pure composition:
+the sections *are* `windowSummary`, `detectSignals`,
+`detectAnnotations` and `narrateWindow`, so the briefing can never
+disagree with the chart it describes. Computed locally — nothing leaves
+the page until you copy it somewhere.
+
+```js
+npm install wickchart wickchart-briefing   // briefing is a separate opt-in package
+
+import { attachBriefing } from 'wickchart-briefing';
+attachBriefing(chart);
+const b = chart.briefing();     // the model — null before data lands
+b.markdown;                     // the document (plus structured fields)
+await chart.copyBriefing();     // …straight to the clipboard
+```
+
+It covers the visible range (pan/zoom first — the briefing follows the
+view), falls back to the full dataset, and its output is deterministic
+(UTC-stable timestamps, injectable clock). Dependencies:
+`wickchart-signals` + `wickchart-narrator` — the census and the timeline
+are theirs, not copies. `briefingModel(bars, i0, i1, opts)` from
+`wickchart-briefing/core` is the pure half — no chart, no DOM.
+
 ## Methods
 
 | Method                          | Description                                      |

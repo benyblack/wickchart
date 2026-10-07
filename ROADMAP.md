@@ -32,7 +32,7 @@ Effort: **S** ≤ a day · **M** a few days · **L** a week+. Spans 2.4 → 3.0
 |---|---|---|---|
 | ~~**Shape & pattern search**~~ ✅ shipped | Brush any region → find every similar occurrence in history, ranked by z-normalized distance, ghosted onto the chart with a matches list (`chart.findShape()`, `wick:shape`). Matrix-profile-class similarity search shipped inside a web chart — nobody has it. | L | Landed sync (not worker): a single O(n log n) FFT pass measures interactive at any history size, so the offload wasn't needed — 100k bars search in ~30 ms. Greedy exclusion collapses overlaps; query/match bands render until cleared; golden-vectored against a brute-force reference. |
 | **AI chart copilot** | Natural language → validated chart operations through the existing agent registry: "add a 21 EMA and show me where RSI diverged", "set up a long risk plan around the last pivot". Chart state → natural language. | M–L | The moat already exists: `wickchart-ai`'s validated dispatcher (`set_indicators` etc.) — no eval, URL-safe tokens. Deterministic rule-based intent core; an LLM is a pluggable accelerator, never a dependency. |
-| Briefing mode | One command synthesizes signals + smart annotations + visible-range stats + the narrate timeline into a structured markdown briefing. "Explain this chart" as a first-class artifact. | S–M | Pure composition of existing parts (`getDataWindow`, signals plugin, narrator analyzer). |
+| ~~Briefing mode~~ ✅ shipped | One command synthesizes signals + smart annotations + visible-range stats + the narrate timeline into a structured markdown briefing. "Explain this chart" as a first-class artifact. | S–M | Landed as the `wickchart-briefing` package (3.4 KB gz, its own budget): pure composition — the sections *are* `windowSummary`, `detectSignals`, `detectAnnotations` and `narrateWindow`, so it can never disagree with the chart. `chart.briefing()` / `copyBriefing()` over the visible range; deterministic output pinned by tests. |
 
 ## Track 2 — Chart as an artifact (sharing, the zero-dep flex)
 
@@ -77,7 +77,7 @@ BroadcastChannel only), dependencies of any kind, a build step.
 2. **Shape & pattern search** — the flagship feature; built on tested
    ground. *L* ✅ shipped
 3. **Single-file export + open** — the zero-dep flex nobody else can copy. *M* ✅ shipped
-4. **Briefing mode** — cheap, composes existing parts into a visible wow. *S–M*
+4. **Briefing mode** — cheap, composes existing parts into a visible wow. *S–M* ✅ shipped
 5. **Fuzz + deterministic replay harness** — the third CI gate. *M*
 
 The columnar store follows as PR six, gated on its spike + decision doc.
