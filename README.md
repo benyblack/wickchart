@@ -1409,6 +1409,26 @@ package where conventions align, plus hand-derived round-number cases — and
 fails over tolerance. The method, the pinned conventions and the cross-check
 matrix live in [docs/correctness.md](./docs/correctness.md).
 
+**Fuzz + deterministic replay** is the third gate, next to size and perf.
+Both halves derive everything from one 32-bit seed (`tests/fuzz-gen.mjs`):
+the same seed regenerates the same adversarial tapes, attribute writes and
+gesture coordinates, so any failure replays byte-exact —
+`WICK_FUZZ_SEED=<seed> npm test -- tests/fuzz.test.mjs` (or
+`npx playwright test e2e/fuzz.spec.mjs`), `WICK_FUZZ_ITER=<n>` digs deeper.
+The Node half (`tests/fuzz.test.mjs`, in `npm test`) property-fuzzes the
+pure kernels — every builtin indicator must answer every adversarial tape
+without throwing and with tape-aligned number-or-null series
+(ichimoku's forward-displaced senkou spans excepted), the stats/annotation/
+shape-search/summary kernels never throw, and `mergeOlderData` keeps the
+tape sorted and deduplicated. The browser half (`e2e/fuzz.spec.mjs`, in
+`npm run test:e2e`) runs whole scenarios against the live element — random
+tapes through `setData`, random attribute strings (valid, garbage and
+malicious), streaming updates, and CDP-driven wheel/drag/keyboard gestures —
+asserting after every step that nothing threw, the tape stays strictly
+ascending, the visible range stays finite and ordered, and the chart paints.
+CI runs the default budget (24 scenarios); a deep local dig of 200 finishes
+in ~1.5 minutes.
+
 The browser suite serves the repository over a small dependency-free static
 server (`e2e/server.mjs`) and loads the library from source, so it tests the
 files that ship rather than a build artifact. The React fixture pulls React

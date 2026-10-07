@@ -48,7 +48,7 @@ Effort: **S** ≤ a day · **M** a few days · **L** a week+. Spans 2.4 → 3.0
 | Feature | What & why | Effort | Notes |
 |---|---|---|---|
 | **Golden-vector correctness** | Every built-in indicator checked against reference vectors — hand-derived fixtures cross-checked against TA-Lib runs, recorded as JSON, run as differential tests; the pass/fail matrix published in docs. "Trust the math" becomes checkable, not claimed. | M | The matrix page is the artifact a reviewer actually looks at. Worker path inherits the fixtures for free (same compute kernels). |
-| **Fuzz + deterministic replay** | Property-based fuzzing of bars/attrs/gestures (CDP-driven input events), seeds recorded, any failure replayable byte-exact. | M | Extends the existing e2e harness; the size and perf gates get a correctness sibling. |
+| ~~**Fuzz + deterministic replay**~~ ✅ shipped | Property-based fuzzing of bars/attrs/gestures (CDP-driven input events), seeds recorded, any failure replayable byte-exact. | M | The third gate, both halves seeded from one 32-bit seed (`tests/fuzz-gen.mjs`): the Node half property-fuzzes every indicator kernel and analyzer in `npm test`; the browser half (`e2e/fuzz.spec.mjs`) runs whole data/attr/gesture scenarios against the live element after every op — replay with `WICK_FUZZ_SEED=<seed>`, dig deeper with `WICK_FUZZ_ITER=<n>`. |
 | **Columnar typed-array store** | The deferred D6 decision, reopened *by choice* as an engineering showcase: SoA `Float64` columns as the internal store, typed-column ingestion (`setData({ columns })`, additive), a compact binary wire format for histories. Target: 5M-bar histories, flat default view, memory density documented. | L | D6's reopen trigger was "≥5M bars or sub-16 ms low-end budgets" — a deliberate reopen for the craft signal, with a spike + decision doc before the full commitment. Render stays O(pixel columns); the wins are memory, scan and ingest. |
 | OffscreenCanvas render thread | Opt-in: painting in a worker so the main thread stays free for host-app work. | M–L | Transfer canvas control off the main thread; Safari fallback; the hover layer stays local to input. |
 
@@ -78,9 +78,10 @@ BroadcastChannel only), dependencies of any kind, a build step.
    ground. *L* ✅ shipped
 3. **Single-file export + open** — the zero-dep flex nobody else can copy. *M* ✅ shipped
 4. **Briefing mode** — cheap, composes existing parts into a visible wow. *S–M* ✅ shipped
-5. **Fuzz + deterministic replay harness** — the third CI gate. *M*
+5. **Fuzz + deterministic replay harness** — the third CI gate. *M* ✅ shipped
 
-The columnar store follows as PR six, gated on its spike + decision doc.
+All five recommended PRs have landed. The columnar store follows as PR six,
+gated on its spike + decision doc.
 
 Each PR lands with the size and perf gates green — both enforced in CI now,
 not promised.
