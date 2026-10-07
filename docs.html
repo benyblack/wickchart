@@ -218,6 +218,7 @@
         <li><a href="#feeds">Feeds (&lt;wick-feed&gt;)</a></li>
         <li><a href="#worker">Worker compute path<span class="new-pill">NEW</span></a></li>
         <li><a href="#report">Report export<span class="new-pill">NEW</span></a></li>
+        <li><a href="#standalone">Standalone export<span class="new-pill">NEW</span></a></li>
         <li><a href="#events">Events</a></li>
         <li><a href="#state">State &amp; shareable URLs</a></li>
         <li><a href="#theming">Theming</a></li>
@@ -719,6 +720,25 @@ s.patterns;   <span class="cmt">// [{ time, note }] — most recent first</span>
           <wick-feed for="ex-rep" demo="ETH" tf="1h" limit="300"></wick-feed>
           <wick-chart id="ex-rep" label="ETH · 1h" indicators="sma:20 volume"></wick-chart>
           <div class="foot" id="rep-foot">compose a report from the visible range — preview it, or download the PNG</div>
+        </div>
+      </section>
+
+      <section id="standalone">
+        <h2>Standalone export <a class="anchor" href="#standalone">#</a> <span class="pill new">NEW</span></h2>
+        <p><b>Send a chart, not a screenshot.</b> <code>exportChart()</code> produces one self-contained <code>.html</code> — the whole module inlined (core + the element flattened into a single module script), the state snapshot and the data as compact bar arrays — that opens offline, from a file manager or an email attachment, with zero requests. Only a zero-dependency, no-build module can do this: there is nothing else to inline.</p>
+        <div class="codewrap"><pre class="code"><span class="tag">import</span> { exportChart, downloadChart, adoptShared, attachDrop } <span class="tag">from</span> <span class="str">'wickchart/standalone'</span>;
+
+<span class="tag">const</span> html = <span class="tag">await</span> <span class="attr">exportChart</span>(chart);        <span class="cmt">// one self-contained .html string</span>
+<span class="tag">await</span> <span class="attr">downloadChart</span>(chart, <span class="str">'btc-1h.html'</span>); <span class="cmt">// …as a file download</span>
+<span class="tag">await</span> <span class="attr">adoptShared</span>(chart, file);            <span class="cmt">// restore a shared file into a chart</span>
+<span class="attr">attachDrop</span>(chart);                             <span class="cmt">// drag one anywhere → it restores</span></pre></div>
+        <p>What travels: series type, theme (a registered custom theme's palette is embedded and re-registered on open), indicators, the view range, positions and alerts, and the bars themselves — <code>maxBars</code> caps the history for smaller files. The inverse of the export is part of the same module: <code>openShared(file)</code> reads the payload back out, <code>adoptShared(chart, file)</code> applies it to a live chart, and <code>attachDrop(chart)</code> wires the drag-and-drop. Hosts that bundle the library pass <code>coreSource</code>/<code>chartSource</code> strings instead of letting it fetch the module files; <code>pluginSources</code> + <code>init</code> append already-flattenable plugin module sources through the same machinery (narrated stories export as playable files this way).</p>
+        <div class="note">The export runs <code>flattenModule()</code> over the real sources at export time — imports resolved, export lists dropped, one shared module scope — pinned by <code>node --check</code> in the test suite, so a source edit that breaks inlining fails CI rather than someone's shared chart.</div>
+        <div class="demo-card">
+          <div class="demo-head"><span class="t">Playground</span><span class="spacer"></span><span id="sa-btns"></span></div>
+          <wick-feed for="ex-sa" demo="ETH" tf="1h" limit="300"></wick-feed>
+          <wick-chart id="ex-sa" label="ETH · 1h" indicators="sma:20 volume"></wick-chart>
+          <div class="foot" id="sa-foot">export this chart as one offline .html — or drag an exported file onto this page to restore it</div>
         </div>
       </section>
 
@@ -1465,6 +1485,33 @@ nav.<span class="attr">detach</span>();  <span class="cmt">// everything detache
         foot.textContent = 'downloaded — wickchart-report.png';
       }));
       $('rep-btns').appendChild(dl);
+    }
+
+    /* ---------- standalone export ---------- */
+    {
+      const c = $('ex-sa'), foot = $('sa-foot');
+      const { downloadChart, attachDrop } = await import('./src/standalone.js');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'primary';
+      btn.textContent = 'Download .html';
+      btn.addEventListener('click', async () => {
+        btn.textContent = 'Inlining…';
+        btn.disabled = true;
+        try {
+          await downloadChart(c, 'wickchart.html', { source: 'docs playground · synthetic' });
+          foot.textContent = 'downloaded wickchart.html — open it offline, or drag it back onto this page';
+        } catch (e) {
+          foot.textContent = 'export failed: ' + e.message;
+        }
+        btn.disabled = false;
+        btn.textContent = 'Download .html';
+      });
+      $('sa-btns').appendChild(btn);
+      attachDrop(c, {
+        onadopt: (p) => { foot.textContent = `restored “${p.label || 'shared chart'}” — ${p.bars.length} bars, view included`; },
+        onerror: (e) => { foot.textContent = 'not a shared chart: ' + (e && e.message || e); },
+      });
     }
 
     /* ---------- events log ---------- */
