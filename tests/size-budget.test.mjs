@@ -137,6 +137,13 @@ const AI_FILES = ['plugins/ai/core.mjs', 'plugins/ai/ai.mjs'];
 const ANIMATE_BUDGET_GZ = 4 * 1024;
 const ANIMATE_FILES = ['plugins/animate/animate.mjs'];
 
+// briefing: pure composition — windowSummary's tape, the signals census,
+// smart annotations and the narrate timeline formatted into one markdown
+// document, plus the attach that scopes it to the visible range.
+// Landed at 3.4 KB gz.
+const BRIEFING_BUDGET_GZ = 5 * 1024;
+const BRIEFING_FILES = ['plugins/briefing/core.mjs', 'plugins/briefing/briefing.mjs'];
+
 // standalone: the single-file export — module flattening (import/export
 // statement surgery so core + element share one module scope), the payload
 // (state + compact bar arrays + custom-theme palette), the HTML builder
@@ -401,5 +408,19 @@ test('wickchart/standalone entry stays under its gzip budget', () => {
   assert.ok(
     total <= STANDALONE_BUDGET_GZ,
     `wickchart/standalone is ${(total / 1024).toFixed(1)} KB gz, budget is ${STANDALONE_BUDGET_GZ / 1024} KB gz\n  ${parts.join('\n  ')}`
+  );
+});
+
+test('wickchart-briefing plugin stays under its (smaller) gzip budget', () => {
+  let total = 0;
+  const parts = [];
+  for (const f of BRIEFING_FILES) {
+    const n = gz(f);
+    total += n;
+    parts.push(`${f}: ${(n / 1024).toFixed(1)} KB gz`);
+  }
+  assert.ok(
+    total <= BRIEFING_BUDGET_GZ,
+    `wickchart-briefing is ${(total / 1024).toFixed(1)} KB gz, budget is ${BRIEFING_BUDGET_GZ / 1024} KB gz\n  ${parts.join('\n  ')}`
   );
 });
