@@ -26,6 +26,62 @@ its own commit with the why.
 
 ---
 
+## 2.4.0 — 2026-10-08 — shape search, standalone export & the correctness gates
+
+The v3 roadmap's first five recommended PRs in one minor. npm goes
+2.3.0 → 2.4.0 (strictly additive: `findShape()` and friends, the
+`shapeSearch` core export, the `wickchart/standalone` opt-in entry).
+Housekeeping note: v2.3.0's tag and GitHub Release went out, but its
+`npm publish` never ran — the registry jumps 2.2.0 → 2.4.0 here, carrying
+`registerTheme()` and the rest of 2.3.0 along, and `wickchart-animate`
+0.1.0 publishes for the first time in the same pass.
+
+- **Shape & pattern search** — `chart.findShape({ from, to })` finds every
+  occurrence of a bar range's *shape* across the whole loaded history:
+  z-normalized similarity (a match is about form, not price level or
+  amplitude — the dip you're looking at matches at any scale), one
+  O(n log n) FFT pass (100k bars ≈ 30 ms, interactive at any history
+  size), greedy non-overlapping exclusion. Matches ghost onto the chart as
+  bands with a ranked list (`wick:shape`), `clearShape()` clears,
+  `shapeResult` reports; `shapeSearch()` is exported from
+  `wickchart/core` and golden-vectored against a brute-force reference.
+  Main-entry budget 68 → 71 KB gz (its own commit).
+- **Standalone export — send a chart, not a screenshot**
+  (`wickchart/standalone`, opt-in; landed 5.6 KB gz under its own 7 KB
+  budget): `exportChart(chart)` produces one self-contained `.html` — the
+  module inlined (`flattenModule()` resolves core + element into a single
+  module script, a contract pinned against the real sources with
+  `node --check` in CI), the state snapshot, compact bar arrays and a
+  registered custom theme's palette embedded — which opens offline from
+  `file://` with zero requests. The round-trip ships in the same entry:
+  `openShared()` / `adoptShared(chart, file)` restore a shared file into a
+  live chart and `attachDrop(chart)` wires the drag-and-drop;
+  `maxBars` caps the history and `pluginSources`/`init` extend the
+  machinery (narrated stories export as playable files this way).
+- **`wickchart-briefing` 0.1.0** (new package, publishing alongside): one
+  command that explains the chart — the visible window as a structured
+  markdown briefing (tape summary, candlestick signal census, smart
+  annotations, narrate timeline). Pure composition: the sections *are*
+  `windowSummary`, `detectSignals`, `detectAnnotations` and
+  `narrateWindow`, so the briefing can never disagree with the chart.
+  `chart.briefing()` / `copyBriefing()` after `attachBriefing(chart)`;
+  deterministic output (UTC-stable stamps, injectable clock). The first
+  plugin to depend on its siblings (wickchart-signals +
+  wickchart-narrator). 3.4 KB gz, own budget.
+- **Golden-vector correctness gate** — every exported indicator kernel
+  runs in `npm test` against committed reference vectors, generated from
+  independent numpy/pandas implementations and cross-checked against the
+  third-party [`ta`](https://pypi.org/project/ta/) package where
+  conventions align, failing over tolerance. The method, the pinned
+  conventions and the matrix live in `docs/correctness.md`.
+- **Fuzz + deterministic replay — the third CI gate** (tests only, no
+  shipped bytes): both halves derive from one 32-bit seed — the Node half
+  property-fuzzes every indicator kernel and analyzer over adversarial
+  tapes, the browser half runs whole data/attribute/gesture scenarios
+  against the live element with invariants asserted after every step.
+  Any failure replays byte-exact: `WICK_FUZZ_SEED=<seed>` reruns it,
+  `WICK_FUZZ_ITER=<n>` digs deeper.
+
 ## 2.3.0 — 2026-09-22 — named themes & animate
 
 Two shipped features. npm goes 2.2.0 → 2.3.0 (minor: new additive surface —
